@@ -45,11 +45,13 @@ async function verifyAuth() {
     assert(validLoginRes.status === 200, 'Valid login returns 200 OK');
     const validLoginBody = await validLoginRes.json();
     assert(validLoginBody.success === true, 'Response body indicates success');
-    assert(validLoginBody.data.user.email === 'admin@example.com', 'Returns user email');
-    assert(!validLoginBody.data.user.passwordHash, 'Does NOT leak password hash');
+    assert(validLoginBody.data.email === 'admin@example.com', 'Returns user email');
+    assert(!validLoginBody.data.passwordHash, 'Does NOT leak password hash');
 
     const tokenCookieStr = extractCookie(validLoginRes, 'token');
+    const csrfCookieStr = extractCookie(validLoginRes, 'csrfToken');
     assert(!!tokenCookieStr, 'Returns token cookie');
+    assert(!!csrfCookieStr, 'Returns CSRF token cookie');
     
     // TEST O: Cookie Security Attributes
     if (tokenCookieStr) {
@@ -59,6 +61,9 @@ async function verifyAuth() {
     }
     
     const validCookieHeader = tokenCookieStr ? tokenCookieStr.split(';')[0] : '';
+    const csrfCookieHeader = csrfCookieStr ? csrfCookieStr.split(';')[0] : '';
+    const csrfToken = csrfCookieHeader.split('=').slice(1).join('=');
+    const validAuthCookieHeader = [validCookieHeader, csrfCookieHeader].filter(Boolean).join('; ');
 
     // -----------------------------------------------------------------------
     // TEST B & P: Wrong password (generic error)
@@ -127,11 +132,11 @@ async function verifyAuth() {
     // -----------------------------------------------------------------------
     console.log('\n--- Test: /auth/me with valid cookie ---');
     const meAuthRes = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Cookie: validCookieHeader }
+      headers: { Cookie: validAuthCookieHeader }
     });
     assert(meAuthRes.status === 200, '/auth/me with valid cookie returns 200');
     const meAuthBody = await meAuthRes.json();
-    assert(meAuthBody.data.user.email === 'admin@example.com', '/auth/me returns correct user details');
+    assert(meAuthBody.data.email === 'admin@example.com', '/auth/me returns correct user details');
 
     // -----------------------------------------------------------------------
     // TEST J: Protected route without auth
@@ -145,7 +150,7 @@ async function verifyAuth() {
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Protected route with auth ---');
     const protectedAuthRes = await fetch(`${API_BASE_URL}/test-protected`, {
-      headers: { Cookie: validCookieHeader }
+      headers: { Cookie: validAuthCookieHeader }
     });
     assert(protectedAuthRes.status === 200, 'Protected route with auth returns 200');
 
@@ -164,7 +169,8 @@ async function verifyAuth() {
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Logout & /auth/me after logout ---');
     const logoutRes = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST'
+      method: 'POST',
+      headers: { Cookie: validAuthCookieHeader, 'X-CSRF-Token': csrfToken },
     });
     assert(logoutRes.status === 200, 'Logout returns 200 OK');
     const clearCookieStr = extractCookie(logoutRes, 'token');

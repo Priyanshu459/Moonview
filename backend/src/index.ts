@@ -14,27 +14,27 @@ import { config } from './config/index.js';
 
 async function main(): Promise<void> {
   logger.info(
-    { env: config.NODE_ENV, port: config.PORT },
+    { env: config.NODE_ENV, host: config.HOST, port: config.PORT },
     '🚀 Starting Moonview API server...',
   );
 
   // Initialize storage directories before accepting any traffic
   const { storageService } = await import('./services/storage.service.js');
+  const { mediaExposureService } = await import('./services/media-exposure.service.js');
   await storageService.initialize();
+  await mediaExposureService.initialize();
   logger.info('✅ Storage initialized');
 
   // Connect to the database before accepting any traffic
   await connectDatabase();
 
-  // Import routes/queue only after storage and PostgreSQL are ready. This keeps
-  // the worker from consuming jobs during a partially initialized startup.
+  // Import routes only after storage and PostgreSQL are ready.
   const { createApp } = await import('./app.js');
-  const { closeVideoWorker } = await import('./queue/worker.js');
   const app = createApp();
 
-  const server = app.listen(config.PORT, () => {
-    logger.info(`✅ Server listening on http://localhost:${config.PORT}`);
-    logger.info(`📋 Health check: http://localhost:${config.PORT}/api/health`);
+  const server = app.listen(config.PORT, config.HOST, () => {
+    logger.info(`✅ Server listening on http://${config.HOST}:${config.PORT}`);
+    logger.info(`📋 Health check: http://${config.HOST}:${config.PORT}/api/health`);
   });
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
@@ -64,7 +64,6 @@ async function main(): Promise<void> {
     forceTimer.unref();
 
     try {
-      await closeVideoWorker();
       const { closeVideoQueue } = await import('./queue/index.js');
       await closeVideoQueue();
       const { closeRedisClient } = await import('./services/redis.service.js');

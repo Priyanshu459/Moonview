@@ -47,7 +47,7 @@ async function setupTestData() {
   const mPubRdy = await prisma.content.create({
     data: {
       title: 'Stream Test Pub Ready', slug: 'test-stream-pub-rdy', description: 'Test', type: 'MOVIE', status: 'PUBLISHED', releaseYear: 2026,
-      mediaAsset: { create: { originalFilename: 'v.mp4', storageKey: 'originals/test-uuid-pub-rdy.mp4', mimeType: 'video/mp4', fileSize: 1000, processingStatus: 'READY', hlsMasterKey: 'hls/test-uuid/master.m3u8' } }
+      mediaAsset: { create: { originalFilename: 'v.mp4', storageKey: 'originals/test-uuid-pub-rdy.mp4', mimeType: 'video/mp4', fileSize: 1000, processingStatus: 'READY', hlsMasterKey: 'hls-private/test-uuid/master.m3u8' } }
     }, include: { mediaAsset: true }
   });
 
@@ -83,12 +83,14 @@ async function setupTestData() {
 
   // Create dummy files for tests
   await fs.mkdir(path.join(config.STORAGE_ROOT, 'originals'), { recursive: true });
-  await fs.mkdir(path.join(config.STORAGE_ROOT, 'hls', 'test-uuid'), { recursive: true });
+  await fs.mkdir(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid'), { recursive: true });
+  await fs.mkdir(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid'), { recursive: true });
   
   const dummyVideo = Buffer.alloc(1000, 'A');
   await fs.writeFile(path.join(config.STORAGE_ROOT, 'originals', 'test-uuid-pub-rdy.mp4'), dummyVideo);
-  await fs.writeFile(path.join(config.STORAGE_ROOT, 'hls', 'test-uuid', 'master.m3u8'), '#EXTM3U\n');
-  await fs.writeFile(path.join(config.STORAGE_ROOT, 'hls', 'test-uuid', 'segment0.ts'), Buffer.alloc(100));
+  await fs.writeFile(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid', 'master.m3u8'), '#EXTM3U\n');
+  await fs.writeFile(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid', 'master.m3u8'), '#EXTM3U\n');
+  await fs.writeFile(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid', 'segment0.ts'), Buffer.alloc(100));
 
   return { mPubRdy, mUnpubRdy, mPubProc, series, epMediaPub };
 }
@@ -186,7 +188,8 @@ async function runTests() {
       console.log('--- Cleanup ---');
       await prisma.content.deleteMany({ where: { slug: { startsWith: 'test-stream-' } }});
       await fs.rm(path.join(config.STORAGE_ROOT, 'originals', 'test-uuid-pub-rdy.mp4'), { force: true });
-      await fs.rm(path.join(config.STORAGE_ROOT, 'hls', 'test-uuid'), { recursive: true, force: true });
+      await fs.rm(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid'), { recursive: true, force: true });
+      await fs.rm(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid'), { recursive: true, force: true });
     }
   }
 }

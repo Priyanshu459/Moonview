@@ -113,7 +113,7 @@ export function createApp() {
   // ---------------------------------------------------------------------------
   // Static Local Delivery for HLS (Simulating Nginx)
   // ---------------------------------------------------------------------------
-  app.use('/media/hls', express.static(path.join(config.STORAGE_ROOT, 'hls'), {
+  app.use('/media/hls', express.static(path.join(config.PUBLIC_MEDIA_ROOT, 'hls'), {
     setHeaders: (res, p) => {
       if (p.endsWith('.m3u8')) {
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -129,8 +129,8 @@ export function createApp() {
     maxAge: '30d',
     immutable: true,
   };
-  app.use('/media/posters', express.static(path.join(config.STORAGE_ROOT, 'posters'), immutableImageOptions));
-  app.use('/media/backdrops', express.static(path.join(config.STORAGE_ROOT, 'backdrops'), immutableImageOptions));
+  app.use('/media/posters', express.static(path.join(config.PUBLIC_MEDIA_ROOT, 'posters'), immutableImageOptions));
+  app.use('/media/backdrops', express.static(path.join(config.PUBLIC_MEDIA_ROOT, 'backdrops'), immutableImageOptions));
 
   // ---------------------------------------------------------------------------
   // 404 — must come after all routes

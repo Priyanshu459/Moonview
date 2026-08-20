@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/database.js';
 import { auditService, AuditAction } from '../services/audit.service.js';
 import { storageService } from '../services/storage.service.js';
+import { mediaExposureService } from '../services/media-exposure.service.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { logger } from '../utils/logger.js';
@@ -103,6 +104,7 @@ export class AdminMediaController {
       const cleanupTasks: Promise<unknown>[] = [storageService.delete(asset.storageKey)];
       if (asset.hlsMasterKey) {
         cleanupTasks.push(fs.rm(path.dirname(storageService.getUri(asset.hlsMasterKey)), { recursive: true, force: true }));
+        cleanupTasks.push(mediaExposureService.revokeKey(path.dirname(asset.hlsMasterKey)));
       }
       if (asset.thumbnailKey) {
         cleanupTasks.push(fs.rm(path.dirname(storageService.getUri(asset.thumbnailKey)), { recursive: true, force: true }));

@@ -43,7 +43,7 @@ export class LocalStorageProvider implements IStorageProvider {
   }
 
   public async initialize(): Promise<void> {
-    const dirs = ['originals', 'posters', 'backdrops', 'processed', 'hls'];
+    const dirs = ['originals', 'posters', 'backdrops', 'processed', 'hls-private'];
     
     // Ensure root exists first
     await fs.mkdir(this.rootPath, { recursive: true });

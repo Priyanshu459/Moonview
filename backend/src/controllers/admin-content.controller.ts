@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/database.js';
 import { z } from 'zod';
 import { auditService, AuditAction } from '../services/audit.service.js';
+import { mediaExposureService } from '../services/media-exposure.service.js';
 
 const contentSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -281,11 +282,18 @@ export class AdminContentController {
         if (content.mediaAsset.processingStatus !== 'READY') {
           return res.status(400).json({ error: { message: `Cannot publish: Media Asset is not READY (currently ${content.mediaAsset.processingStatus})` } });
         }
+        await mediaExposureService.exposeAsset(content.mediaAsset);
       } else if (content.type === 'SERIES') {
-        // For series, at least one episode must exist and all existing episodes must be valid?
-        // Actually for now, let's just allow publishing series, but we could enforce things.
-        // I will just let series publish.
+        for (const season of content.seasons) {
+          for (const episode of season.episodes) {
+            if (episode.status === 'PUBLISHED' && episode.mediaAsset?.processingStatus === 'READY') {
+              await mediaExposureService.exposeAsset(episode.mediaAsset);
+            }
+          }
+        }
       }
+      if (content.posterKey) await mediaExposureService.exposeKey(content.posterKey);
+      if (content.backdropKey) await mediaExposureService.exposeKey(content.backdropKey);
 
       const updated = await prisma.content.update({
         where: { id },
@@ -310,6 +318,23 @@ export class AdminContentController {
     try {
       const adminId = (req as any).user.userId;
       const { id } = req.params as { id: string };
+
+      const content = await prisma.content.findUnique({
+        where: { id },
+        include: { mediaAsset: true, seasons: { include: { episodes: { include: { mediaAsset: true } } } } },
+      });
+      if (!content) return res.status(404).json({ error: { message: 'Content not found' } });
+
+      if (content.mediaAsset) {
+        await mediaExposureService.revokeAsset(content.mediaAsset);
+      }
+      for (const season of content.seasons) {
+        for (const episode of season.episodes) {
+          if (episode.mediaAsset) await mediaExposureService.revokeAsset(episode.mediaAsset);
+        }
+      }
+      if (content.posterKey) await mediaExposureService.revokeKey(content.posterKey);
+      if (content.backdropKey) await mediaExposureService.revokeKey(content.backdropKey);
 
       const updated = await prisma.content.update({
         where: { id },

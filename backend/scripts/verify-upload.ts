@@ -5,7 +5,12 @@ import { config } from '../src/config/index.js';
 import crypto from 'node:crypto';
 import http from 'node:http';
 
-async function authenticate(): Promise<string> {
+type AuthContext = {
+  cookieHeader: string;
+  csrfToken: string;
+};
+
+async function authenticate(): Promise<AuthContext> {
   const adminPassword = process.env.ADMIN_PASSWORD || 'CHANGE_THIS_STRONG_PASSWORD';
   const res = await fetch(`${config.API_BASE_URL}/api/auth/login`, {
     method: 'POST',
@@ -13,18 +18,23 @@ async function authenticate(): Promise<string> {
     body: JSON.stringify({ email: 'admin@example.com', password: adminPassword }),
   });
   if (!res.ok) throw new Error('Auth failed');
-  const token = res.headers.get('set-cookie')?.split(';')[0].split('=')[1];
-  return token || '';
+  const cookies = res.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
+  const csrfCookie = cookies.find((cookie) => cookie.startsWith('csrfToken='));
+  const csrfToken = csrfCookie?.split('=').slice(1).join('') || '';
+  return {
+    cookieHeader: cookies.join('; '),
+    csrfToken,
+  };
 }
 
-async function uploadFile(endpoint: string, token: string, filename: string, mimeType: string, content: Buffer | Blob, sizeOverride?: number) {
+async function uploadFile(endpoint: string, auth: AuthContext | null, filename: string, mimeType: string, content: Buffer | Blob, sizeOverride?: number) {
   const formData = new FormData();
   formData.append('file', new Blob([content], { type: mimeType }), filename);
   
   return fetch(`${config.API_BASE_URL}/api/uploads/${endpoint}`, {
     method: 'POST',
     headers: {
-      'Cookie': `token=${token}`,
+      ...(auth ? { Cookie: auth.cookieHeader, 'X-CSRF-Token': auth.csrfToken } : {}),
     },
     body: formData,
   });
@@ -50,17 +60,19 @@ async function verifyUploads() {
   const createdMediaAssetIds: string[] = [];
   const createdUploadJobIds: string[] = [];
   const createdStorageKeys: string[] = [];
+  const fs = await import('node:fs/promises');
+  const baselineOriginals = new Set(await fs.readdir('./media/originals').catch(() => []));
   
   try {
-    const token = await authenticate();
-    assert(token, 'Authenticated successfully');
+    const auth = await authenticate();
+    assert(auth.cookieHeader && auth.csrfToken, 'Authenticated successfully');
 
     // -----------------------------------------------------------------------
     // TEST 1: Valid MP4 Upload
     // -----------------------------------------------------------------------
     console.log('--- Test: Valid MP4 Upload ---');
     const mp4Buf = createDummyBuffer(1024, MAGIC.MP4);
-    const mp4Res = await uploadFile('video', token, 'test.mp4', 'video/mp4', mp4Buf);
+    const mp4Res = await uploadFile('video', auth, 'test.mp4', 'video/mp4', mp4Buf);
     assert(mp4Res.ok, 'Valid MP4 returns 201');
     const mp4Data = await mp4Res.json();
     assert(mp4Data.data.mimeType === 'video/mp4', 'Correct mime type');
@@ -87,7 +99,7 @@ async function verifyUploads() {
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Valid MKV Upload ---');
     const mkvBuf = createDummyBuffer(1024, MAGIC.MKV);
-    const mkvRes = await uploadFile('video', token, 'movie.mkv', 'video/x-matroska', mkvBuf);
+    const mkvRes = await uploadFile('video', auth, 'movie.mkv', 'video/x-matroska', mkvBuf);
     assert(mkvRes.ok, 'Valid MKV returns 201');
     const mkvData = await mkvRes.json();
     createdMediaAssetIds.push(mkvData.data.mediaAssetId);
@@ -100,7 +112,7 @@ async function verifyUploads() {
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Valid Poster Upload ---');
     const jpgBuf = createDummyBuffer(512, MAGIC.JPEG);
-    const posterRes = await uploadFile('poster', token, 'poster.jpg', 'image/jpeg', jpgBuf);
+    const posterRes = await uploadFile('poster', auth, 'poster.jpg', 'image/jpeg', jpgBuf);
     assert(posterRes.ok, 'Valid Poster returns 201');
     const posterData = await posterRes.json();
     assert(posterData.data.storageKey.startsWith('posters/'), 'Stored in posters/');
@@ -112,7 +124,7 @@ async function verifyUploads() {
     // TEST 4: Unauthenticated Request
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Unauthenticated Request ---');
-    const unauthRes = await uploadFile('video', '', 'test.mp4', 'video/mp4', mp4Buf);
+    const unauthRes = await uploadFile('video', null, 'test.mp4', 'video/mp4', mp4Buf);
     assert(unauthRes.status === 401, 'Unauthenticated returns 401');
     console.log('✅ [PASS] Unauthenticated access blocked');
 
@@ -120,16 +132,16 @@ async function verifyUploads() {
     // TEST 5: Invalid MIME / Extension / Magic Bytes
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Invalid Types ---');
-    const badMimeRes = await uploadFile('video', token, 'test.mp4', 'image/jpeg', mp4Buf); // wrong mime
+    const badMimeRes = await uploadFile('video', auth, 'test.mp4', 'image/jpeg', mp4Buf); // wrong mime
     assert(badMimeRes.status === 415, 'Invalid MIME returns 415');
     
-    const badExtRes = await uploadFile('video', token, 'test.txt', 'video/mp4', mp4Buf); // wrong ext
+    const badExtRes = await uploadFile('video', auth, 'test.txt', 'video/mp4', mp4Buf); // wrong ext
     assert(badExtRes.status === 415, 'Invalid Extension returns 415');
     
-    const badMagicRes = await uploadFile('video', token, 'test.mp4', 'video/mp4', createDummyBuffer(1024, [0x00, 0x00])); // wrong magic
+    const badMagicRes = await uploadFile('video', auth, 'test.mp4', 'video/mp4', createDummyBuffer(1024, [0x00, 0x00])); // wrong magic
     assert(badMagicRes.status === 415, 'Invalid Magic Bytes returns 415');
     
-    const badPosterRes = await uploadFile('poster', token, 'hack.svg', 'image/svg+xml', createDummyBuffer(1024, [0x3C, 0x73])); // SVG blocked
+    const badPosterRes = await uploadFile('poster', auth, 'hack.svg', 'image/svg+xml', createDummyBuffer(1024, [0x3C, 0x73])); // SVG blocked
     assert(badPosterRes.status === 415, 'SVG upload blocked');
     
     console.log('✅ [PASS] Invalid MIME, Extensions, and Magic Bytes rejected');
@@ -138,7 +150,7 @@ async function verifyUploads() {
     // TEST 6: Empty File
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Empty File ---');
-    const emptyRes = await uploadFile('video', token, 'empty.mp4', 'video/mp4', Buffer.alloc(0));
+    const emptyRes = await uploadFile('video', auth, 'empty.mp4', 'video/mp4', Buffer.alloc(0));
     assert(emptyRes.status === 400, 'Empty file returns 400');
     console.log('✅ [PASS] Empty file rejected');
 
@@ -151,7 +163,7 @@ async function verifyUploads() {
     // Fill first few bytes with JPEG magic to bypass magic byte check
     for(let i=0; i<MAGIC.JPEG.length; i++) largeBuf[i] = MAGIC.JPEG[i];
     
-    const largeRes = await uploadFile('poster', token, 'large.jpg', 'image/jpeg', largeBuf);
+    const largeRes = await uploadFile('poster', auth, 'large.jpg', 'image/jpeg', largeBuf);
     assert(largeRes.status === 413, 'Oversized file returns 413');
     console.log('✅ [PASS] Oversized file rejected');
 
@@ -159,7 +171,7 @@ async function verifyUploads() {
     // TEST 8: Path Traversal Filename
     // -----------------------------------------------------------------------
     console.log('\n--- Test: Path Traversal Filename ---');
-    const traversalRes = await uploadFile('video', token, '../../etc/passwd.mp4', 'video/mp4', mp4Buf);
+    const traversalRes = await uploadFile('video', auth, '../../etc/passwd.mp4', 'video/mp4', mp4Buf);
     assert(traversalRes.ok, 'Upload succeeds but filename is sanitized');
     const traversalData = await traversalRes.json();
     assert(!traversalData.data.storageKey.includes('..'), 'Storage key does not contain traversal characters');
@@ -190,7 +202,8 @@ async function verifyUploads() {
         path: '/api/uploads/video',
         method: 'POST',
         headers: {
-          'Cookie': `token=${token}`,
+          Cookie: auth.cookieHeader,
+          'X-CSRF-Token': auth.csrfToken,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         }
       });
@@ -223,13 +236,13 @@ async function verifyUploads() {
     await new Promise(r => setTimeout(r, 200));
     
     // Check that no orphaned files exist in originals/ directory except what we explicitly tracked
-    const fs = await import('node:fs/promises');
     const originals = await fs.readdir('./media/originals');
     // We expect exactly the number of successful video uploads we tracked
     const expectedTrackedOriginals = createdStorageKeys.filter(k => k.startsWith('originals/')).map(k => k.replace('originals/', ''));
     
     for (const file of originals) {
       if (file === '.gitkeep') continue;
+      if (baselineOriginals.has(file)) continue;
       assert(expectedTrackedOriginals.includes(file), `Orphaned file found: ${file}`);
     }
     console.log('✅ [PASS] Aborted uploads clean up partial files correctly');

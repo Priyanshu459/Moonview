@@ -166,7 +166,7 @@ async function runTests() {
         await prisma.videoVariant.deleteMany({ where: { mediaAssetId: mId } }).catch(() => {});
         // delete from storage
         await storageService.delete(asset.storageKey).catch(() => {});
-        await fs.rm(storageService.getUri(`hls/${mId}`), { recursive: true, force: true }).catch(() => {});
+        await fs.rm(storageService.getUri(`hls-private/${mId}`), { recursive: true, force: true }).catch(() => {});
         await fs.rm(storageService.getUri(`posters/${mId}`), { recursive: true, force: true }).catch(() => {});
         await prisma.mediaAsset.delete({ where: { id: mId } }).catch(() => {});
       }

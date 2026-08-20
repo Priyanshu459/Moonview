@@ -3,6 +3,26 @@ import crypto from 'node:crypto';
 import { UnauthorizedError } from '../utils/errors.js';
 import { config } from '../config/index.js';
 
+const csrfSecret = config.CSRF_SECRET ?? config.COOKIE_SECRET;
+
+function signCsrfNonce(nonce: string): string {
+  return crypto.createHmac('sha256', csrfSecret).update(nonce).digest('base64url');
+}
+
+function createCsrfToken(): string {
+  const nonce = crypto.randomBytes(32).toString('base64url');
+  return `${nonce}.${signCsrfNonce(nonce)}`;
+}
+
+function isValidCsrfToken(token: unknown): token is string {
+  if (typeof token !== 'string') return false;
+  const [nonce, signature, extra] = token.split('.');
+  if (!nonce || !signature || extra !== undefined) return false;
+  const expected = signCsrfNonce(nonce);
+  if (signature.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
 export function csrfMiddleware(req: Request, res: Response, next: NextFunction) {
   // Methods that don't change state are safe
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
@@ -14,7 +34,7 @@ export function csrfMiddleware(req: Request, res: Response, next: NextFunction) 
   const csrfCookie = req.cookies.csrfToken;
   const csrfHeader = req.headers['x-csrf-token'] as string;
 
-  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader || !isValidCsrfToken(csrfCookie)) {
     throw new UnauthorizedError('CSRF token missing or invalid');
   }
 
@@ -24,8 +44,8 @@ export function csrfMiddleware(req: Request, res: Response, next: NextFunction) 
 export function generateCsrfToken(req: Request, res: Response, next: NextFunction) {
   let csrfToken = req.cookies.csrfToken;
 
-  if (!csrfToken) {
-    csrfToken = crypto.randomBytes(32).toString('hex');
+  if (!isValidCsrfToken(csrfToken)) {
+    csrfToken = createCsrfToken();
     res.cookie('csrfToken', csrfToken, {
       maxAge: 365 * 24 * 60 * 60 * 1000,
       httpOnly: false, // Must be readable by frontend to attach to headers

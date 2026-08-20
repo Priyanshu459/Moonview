@@ -5,9 +5,28 @@ import { runFFprobe } from '../utils/ffprobe.js';
 import { generateHlsVariants, generateThumbnail, getTargetResolutions } from '../utils/ffmpeg.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { logger } from '../utils/logger.js';
 import { MediaProcessError } from '../utils/media-process.js';
+import { config } from '../config/index.js';
+
+export class NonRetryableProcessingError extends Error {
+  public readonly nonRetryable = true;
+}
+
+export async function ensureProcessingDiskCapacity(sourcePath: string, workspaceRoot: string): Promise<void> {
+  await fs.mkdir(workspaceRoot, { recursive: true });
+  const [sourceStats, diskStats] = await Promise.all([
+    fs.stat(sourcePath),
+    fs.statfs(workspaceRoot),
+  ]);
+
+  const requiredBytes = Number(sourceStats.size) * 3;
+  const availableBytes = Number(diskStats.bavail) * Number(diskStats.bsize);
+
+  if (availableBytes < requiredBytes) {
+    throw new NonRetryableProcessingError('Insufficient processing disk capacity');
+  }
+}
 
 export function safeProcessingFailure(error: unknown): string {
   const details = error instanceof MediaProcessError
@@ -17,6 +36,9 @@ export function safeProcessingFailure(error: unknown): string {
 
   if (normalized.includes('enospc') || normalized.includes('no space left')) {
     return 'Media processing failed because storage is full';
+  }
+  if (normalized.includes('insufficient processing disk capacity')) {
+    return 'Media processing failed because storage capacity is insufficient';
   }
   if (normalized.includes('no such file') || normalized.includes('enoent')) {
     return 'Source media is missing or unavailable';
@@ -62,9 +84,10 @@ export const processVideoJob = async (job: Job) => {
       })
     ]);
 
-    // 3. Setup workspace
-    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), `moonview-process-${jobId}-`));
+    // 3. Setup workspace on configured persistent processing storage.
     const sourceUri = storageService.getUri(initialCheck.mediaAsset.storageKey);
+    await ensureProcessingDiskCapacity(sourceUri, config.PROCESSING_TMP_ROOT);
+    workspaceDir = await fs.mkdtemp(path.join(config.PROCESSING_TMP_ROOT, `moonview-process-${jobId}-`));
 
     // 4. Run FFprobe
     await job.updateProgress(10);
@@ -111,7 +134,7 @@ export const processVideoJob = async (job: Job) => {
 
     // 8. Finalize Storage
     await job.updateProgress(90);
-    const assetHlsPrefix = `hls/${mediaAssetId}`;
+    const assetHlsPrefix = `hls-private/${mediaAssetId}`;
     const assetPosterPrefix = `posters/${mediaAssetId}`;
 
     // A prior attempt may have moved output before its database transaction
@@ -125,7 +148,7 @@ export const processVideoJob = async (job: Job) => {
     // Create new directories using importDirectory (which moves from workspace)
     // First, move thumbnail out since it goes to posters/
     await storageService.importDirectory(path.join(workspaceDir, thumbnailName), `${assetPosterPrefix}/poster.jpg`);
-    // Then move the rest of HLS to hls/
+    // Then move the rest of HLS to private storage. Publish exposes a copy.
     await storageService.importDirectory(workspaceDir, assetHlsPrefix);
     
     // 9. Update Database to READY (Short transaction)
@@ -140,15 +163,19 @@ export const processVideoJob = async (job: Job) => {
       };
 
       await tx.videoVariant.deleteMany({ where: { mediaAssetId } });
+      const variants = targetResolutions.map((res, index) => ({
+        mediaAssetId,
+        resolution: resEnumMap[res.name],
+        manifestKey: `${assetHlsPrefix}/stream_${index}.m3u8`,
+        width: res.width,
+        height: res.height,
+        bitrate: res.bitrate,
+      }));
+
+      await Promise.all(variants.map((variant) => fs.access(storageService.getUri(variant.manifestKey))));
+
       await tx.videoVariant.createMany({
-        data: targetResolutions.map((res, index) => ({
-          mediaAssetId,
-          resolution: resEnumMap[res.name],
-          manifestKey: `${assetHlsPrefix}/stream_v${index}.m3u8`,
-          width: res.width,
-          height: res.height,
-          bitrate: res.bitrate,
-        })),
+        data: variants,
       });
 
       await tx.mediaAsset.update({
@@ -179,7 +206,8 @@ export const processVideoJob = async (job: Job) => {
 
     const safeFailure = safeProcessingFailure(error);
     const maxAttempts = job.opts.attempts ?? 1;
-    const willRetry = job.attemptsMade + 1 < maxAttempts;
+    const nonRetryable = error instanceof NonRetryableProcessingError || Boolean(error?.nonRetryable);
+    const willRetry = !nonRetryable && job.attemptsMade + 1 < maxAttempts;
 
     // Clean up DB safely. Retryable attempts return to PENDING; only the final
     // failure becomes terminal.
@@ -202,7 +230,8 @@ export const processVideoJob = async (job: Job) => {
       logger.error({ jobId, err: dbError }, 'Failed to record error state to DB');
     }
 
-    throw error; // Let BullMQ retry mechanism handle it
+    if (nonRetryable) return;
+    throw error; // Let BullMQ retry mechanism handle retryable failures
   } finally {
     // Cleanup workspace
     if (workspaceDir) {

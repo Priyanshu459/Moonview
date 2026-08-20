@@ -4,7 +4,8 @@ Structure:
   media/
     originals/   - Raw uploaded video files before processing
     processed/   - Processed MP4 files (H.264/AAC)
-    hls/         - HLS segments and manifests
+    hls-private/ - private HLS segments and manifests
+    tmp/         - processing workspaces
     posters/     - Movie/series poster images
     backdrops/   - Movie/series backdrop images
     thumbnails/  - Video thumbnails extracted by FFmpeg

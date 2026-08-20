@@ -134,17 +134,7 @@ class MoonviewStorageEngine implements multer.StorageEngine {
            return storageService.delete(key).finally(() => cb(new Error('Upload aborted by client')));
         }
         
-        // Get actual size from disk
-        let fileSize = 0;
-        try {
-          const fsPromises = await import('node:fs/promises');
-          const nodePath = await import('node:path');
-          const securePath = nodePath.resolve(config.STORAGE_ROOT, key);
-          const stat = await fsPromises.stat(securePath);
-          fileSize = stat.size;
-        } catch (e) {
-          // ignore
-        }
+        const fileSize = (await storageService.getMetadata(key)).size;
 
         cb(null, {
           size: fileSize,
@@ -223,7 +213,7 @@ export const uploadBackdrop = multer({
 export const handleMulterError = (err: any, req: any, res: any, next: any) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return next(new FileTooLargeError(0)); // We will format the real limit based on route if needed, or rely on AppError default
+      return next(new FileTooLargeError(config.STORAGE_MAX_FILE_SIZE_MB));
     }
     return next(new ValidationError('Malformed multipart request: ' + err.message));
   }

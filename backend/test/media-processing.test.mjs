@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getTargetResolutions } from '../dist/backend/src/utils/ffmpeg.js';
-import { safeProcessingFailure } from '../dist/backend/src/jobs/process-video.job.js';
+import { safeProcessingFailure, NonRetryableProcessingError } from '../dist/backend/src/jobs/process-video.job.js';
 import { MediaProcessError } from '../dist/backend/src/utils/media-process.js';
 
 test('HLS ladder never selects a resolution larger than the source', () => {
@@ -25,4 +25,10 @@ test('stored processing failures are useful but never expose internal paths', ()
 test('disk-full and timeout failures map to terminal-safe reasons', () => {
   assert.equal(safeProcessingFailure(new Error('ENOSPC')), 'Media processing failed because storage is full');
   assert.equal(safeProcessingFailure(new Error('operation timed out')), 'Media processing timed out');
+});
+
+test('disk preflight failure is marked non-retryable and safe to persist', () => {
+  const failure = new NonRetryableProcessingError('Insufficient processing disk capacity');
+  assert.equal(failure.nonRetryable, true);
+  assert.equal(safeProcessingFailure(failure), 'Media processing failed because storage capacity is insufficient');
 });

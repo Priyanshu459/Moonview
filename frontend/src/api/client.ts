@@ -37,7 +37,7 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const BASE_URL = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_BASE_URL ?? '/api');
 
 export async function apiFetch<T>(
   path: string,

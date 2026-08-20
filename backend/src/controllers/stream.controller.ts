@@ -3,6 +3,7 @@ import { prisma } from '../config/database.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 import fs from 'node:fs';
 import { storageService } from '../services/storage.service.js';
+import { publicMediaUrlForPrivateKey } from '../services/media-exposure.service.js';
 
 /**
  * Validates if the media asset can be publicly streamed.
@@ -75,7 +76,7 @@ export const getStreamInfo = async (req: Request, res: Response) => {
     success: true,
     data: {
       mediaId: asset.id,
-      hlsUrl: asset.hlsMasterKey ? `/media/${asset.hlsMasterKey}` : null,
+      hlsUrl: asset.hlsMasterKey ? publicMediaUrlForPrivateKey(asset.hlsMasterKey) : null,
       fallbackUrl: `/api/stream/${asset.id}/fallback`,
       resumePosition
     }

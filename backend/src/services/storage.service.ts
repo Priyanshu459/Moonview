@@ -23,7 +23,7 @@ class StorageService {
    * Generates a safe, cryptographically random key for storage within a designated folder.
    * e.g., 'originals/550e8400-e29b-41d4-a716-446655440000.mp4'
    */
-  public generateKey(folder: 'originals' | 'posters' | 'backdrops' | 'processed' | 'hls', originalFilename: string): string {
+  public generateKey(folder: 'originals' | 'posters' | 'backdrops' | 'processed' | 'hls-private', originalFilename: string): string {
     const ext = path.extname(originalFilename).toLowerCase();
     // Use a UUIDv4 for unguessable and collision-resistant keys
     const randomId = crypto.randomUUID();

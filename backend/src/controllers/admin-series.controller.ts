@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/database.js';
 import { z } from 'zod';
 import { auditService, AuditAction } from '../services/audit.service.js';
+import { mediaExposureService } from '../services/media-exposure.service.js';
 
 const seasonSchema = z.object({
   seasonNumber: z.number().int().min(1),
@@ -288,6 +289,8 @@ export class AdminSeriesController {
       if (episode.mediaAsset.processingStatus !== 'READY') {
         return res.status(400).json({ error: { message: `Cannot publish: Media Asset is not READY (currently ${episode.mediaAsset.processingStatus})` } });
       }
+      await mediaExposureService.exposeAsset(episode.mediaAsset);
+      if (episode.thumbnailKey) await mediaExposureService.exposeKey(episode.thumbnailKey);
 
       const updated = await prisma.episode.update({
         where: { id: episodeId },
@@ -311,6 +314,15 @@ export class AdminSeriesController {
     try {
       const adminId = (req as any).user.userId;
       const { episodeId } = req.params as { episodeId: string };
+
+      const episode = await prisma.episode.findUnique({
+        where: { id: episodeId },
+        include: { mediaAsset: true },
+      });
+      if (!episode) return res.status(404).json({ error: { message: 'Episode not found' } });
+
+      if (episode.mediaAsset) await mediaExposureService.revokeAsset(episode.mediaAsset);
+      if (episode.thumbnailKey) await mediaExposureService.revokeKey(episode.thumbnailKey);
 
       const updated = await prisma.episode.update({
         where: { id: episodeId },

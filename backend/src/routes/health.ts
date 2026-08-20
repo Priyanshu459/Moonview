@@ -10,7 +10,7 @@ import { sendSuccess } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
 import type { HealthStatus, ServiceHealth } from '@moonview/shared';
-import { redisClient } from '../services/redis.service.js';
+import { getRedisClient } from '../services/redis.service.js';
 import { storageService } from '../services/storage.service.js';
 import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
@@ -79,7 +79,7 @@ async function checkDb(): Promise<ServiceHealth> {
 async function checkRedis(): Promise<ServiceHealth> {
   const start = Date.now();
   try {
-    await withinDeadline(redisClient.ping());
+    await withinDeadline(getRedisClient().ping());
     return { status: 'ok', latencyMs: Date.now() - start };
   } catch (error) {
     logger.warn({ error }, 'Redis health check failed');

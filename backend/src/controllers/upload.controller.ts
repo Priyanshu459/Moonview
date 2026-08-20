@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database.js';
 import { storageService } from '../services/storage.service.js';
 import { AppError, ValidationError, InvalidMimeTypeError } from '../utils/errors.js';
-import { videoQueue } from '../queue/index.js';
+import { getVideoQueue } from '../queue/index.js';
 
 export const uploadVideo = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -47,7 +47,7 @@ export const uploadVideo = async (req: Request, res: Response, next: NextFunctio
       });
 
       // Enqueue to BullMQ
-      await videoQueue.add(
+      await getVideoQueue().add(
         'process-video',
         {
             jobId: persisted.uploadJob.id,

@@ -9,6 +9,7 @@ import { z } from 'zod';
 const configSchema = z.object({
   // Application
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  HOST: z.string().default(process.env.NODE_ENV === 'production' ? '127.0.0.1' : 'localhost'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   API_BASE_URL: z.string().url().default('http://localhost:3001'),
 
@@ -21,6 +22,7 @@ const configSchema = z.object({
     .min(32, 'JWT_SECRET must be at least 32 characters — use a cryptographically random value'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   COOKIE_SECRET: z.string().min(16, 'COOKIE_SECRET must be at least 16 characters'),
+  CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must be at least 32 characters').optional(),
   COOKIE_SECURE: z.string().default('false').transform((v) => {
     if (process.env.NODE_ENV === 'production' && v !== 'true') {
       throw new Error('COOKIE_SECURE must be true in production');
@@ -36,7 +38,11 @@ const configSchema = z.object({
 
   // Storage
   STORAGE_ROOT: z.string().default('./media'),
-  STORAGE_MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10240),
+  PUBLIC_MEDIA_ROOT: z.string().default('./public-media'),
+  PROCESSING_TMP_ROOT: z.string().default('./media/tmp'),
+  STORAGE_MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(
+    process.env.NODE_ENV === 'production' ? 100 : 10240,
+  ),
   STORAGE_MAX_IMAGE_SIZE_MB: z.coerce.number().int().positive().default(20),
 
   // Redis
@@ -77,8 +83,11 @@ const configSchema = z.object({
     'REDIS_URL',
     'JWT_SECRET',
     'COOKIE_SECRET',
+    'CSRF_SECRET',
     'CORS_ORIGINS',
     'STORAGE_ROOT',
+    'PUBLIC_MEDIA_ROOT',
+    'PROCESSING_TMP_ROOT',
     'FFMPEG_PATH',
     'FFPROBE_PATH',
   ] as const;
@@ -98,6 +107,22 @@ const configSchema = z.object({
       code: 'custom',
       path: ['CORS_ORIGINS'],
       message: 'Wildcard CORS origins are not allowed in production',
+    });
+  }
+
+  if (values.HOST !== '127.0.0.1') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['HOST'],
+      message: 'HOST must be 127.0.0.1 in production behind Nginx',
+    });
+  }
+
+  if (values.STORAGE_MAX_FILE_SIZE_MB > 100) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['STORAGE_MAX_FILE_SIZE_MB'],
+      message: 'Cloudflare-proxied production uploads must be limited to 100 MB until chunked uploads are implemented',
     });
   }
 });
