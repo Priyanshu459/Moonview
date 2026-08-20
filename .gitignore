@@ -1,0 +1,72 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment — NEVER COMMIT
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Media (local dev storage — exclude large files)
+backend/media/originals/
+backend/media/processed/
+backend/media/hls/
+backend/media/posters/*
+backend/media/backdrops/*
+backend/media/thumbnails/*
+
+# Local binary/test artifacts
+*.mp4
+*.msi
+
+# Keep folder structure but ignore content
+!backend/media/.gitkeep
+!backend/media/posters/.gitkeep
+!backend/media/backdrops/.gitkeep
+!backend/media/thumbnails/.gitkeep
+
+# Prisma generated
+backend/src/generated/
+
+# PM2
+.pm2/

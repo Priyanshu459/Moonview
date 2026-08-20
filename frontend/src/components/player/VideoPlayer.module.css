@@ -1,0 +1,246 @@
+.playerContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: opacity var(--transition-base);
+  z-index: 10;
+}
+
+.overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+  cursor: none;
+}
+
+.topGradient {
+  height: 120px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.bottomControls {
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.centerState {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.centerIcon {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  padding: 1rem;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+.errorState {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  z-index: 50;
+}
+
+.errorTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--color-error);
+  margin-bottom: 1rem;
+}
+
+.errorMessage {
+  color: var(--color-text-secondary);
+  max-width: 500px;
+}
+
+/* Controls */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.controlsGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.iconBtn {
+  color: white;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  padding: 0.25rem;
+}
+
+.iconBtn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.timeDisplay {
+  color: white;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  min-width: 100px;
+}
+
+/* Progress */
+.progressContainer {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.progressTrack {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  transition: height var(--transition-fast);
+}
+
+.progressContainer:hover .progressTrack {
+  height: 6px;
+}
+
+.progressBuffered {
+  position: absolute;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  left: 0;
+}
+
+.progressFill {
+  position: absolute;
+  height: 100%;
+  background: var(--color-brand-primary);
+  border-radius: 2px;
+  left: 0;
+}
+
+.progressThumb {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: var(--color-brand-primary);
+  border-radius: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--transition-fast);
+}
+
+.progressContainer:hover .progressThumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Volume Slider */
+.volumeGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.volumeSlider {
+  width: 0;
+  opacity: 0;
+  transition: width var(--transition-fast), opacity var(--transition-fast);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.volumeGroup:hover .volumeSlider, .volumeSlider:focus-within {
+  width: 80px;
+  opacity: 1;
+}
+
+.volumeTrack {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+.volumeFill {
+  height: 100%;
+  background: white;
+  border-radius: 2px;
+}
+
+/* Quality Menu */
+.qualityMenu {
+  position: absolute;
+  bottom: 60px;
+  right: 2rem;
+  background: rgba(10, 10, 15, 0.9);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  z-index: 20;
+}
+
+.qualityBtn {
+  padding: 0.5rem 1.5rem;
+  color: white;
+  text-align: left;
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qualityBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.qualityBtn.active {
+  color: var(--color-brand-primary);
+  font-weight: bold;
+}

@@ -1,0 +1,84 @@
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4%;
+  z-index: var(--z-sticky);
+  transition: background-color var(--transition-base);
+  background-color: transparent;
+}
+
+.navbar.scrolled {
+  background-color: var(--color-bg-base);
+}
+
+.brandGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: var(--font-bold);
+  color: white;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.navLinks {
+  display: none;
+}
+
+.navLinks a {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  transition: color var(--transition-fast);
+}
+
+.navLinks a:hover,
+.navLinks a.active {
+  color: var(--color-text-primary);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--color-text-primary);
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.iconButton:hover {
+  opacity: 1;
+}
+
+.mobileMenuBtn {
+  display: block;
+}
+
+/* Tablet & Desktop */
+@media (min-width: 768px) {
+  .navLinks {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+  }
+  .mobileMenuBtn {
+    display: none;
+  }
+}

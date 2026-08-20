@@ -1,0 +1,37 @@
+# Moonview — Dependency Version Matrix
+# Audited against Node.js v24.18.0 on 2026-08-20
+
+# Core Runtime
+node          = 24.18.0   # LTS
+npm           = 11.16.0
+
+# Frontend
+react         = 19.2.8
+react-dom     = 19.2.8
+vite          = 8.2.2
+typescript    = 7.0.2
+react-router  = 8.3.0     # v8 (latest stable)
+@tanstack/react-query = 5.101.4
+hls.js        = 1.7.1
+
+# Backend
+express       = 5.2.1     # v5 (stable)
+prisma        = 7.9.1
+@prisma/client = 7.9.1
+zod           = 4.4.3
+pino          = 10.3.1
+argon2        = 0.45.1
+bullmq        = 6.1.2
+ioredis       = 6.0.0
+helmet        = 8.3.0
+cors          = 2.8.6
+express-rate-limit = 8.6.2
+multer        = 2.2.0
+sanitize-filename = 1.6.4
+cookie-parser = 1.4.7
+jsonwebtoken  = 9.0.3
+
+# Dev tooling
+tsx           = 4.23.12   # fast TS execution
+@types/node   = 26.2.0
+@types/express = 5.0.6

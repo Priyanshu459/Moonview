@@ -1,0 +1,463 @@
+// =============================================================================
+// Moonview — Prisma Schema
+// PostgreSQL 17 | Prisma 7.x
+//
+// Design principles:
+// - Content (movies/series) is separated from MediaAssets (files/variants)
+// - Database stores metadata and storage keys — NEVER raw filesystem paths
+// - Series → Season → Episode hierarchy with independent media assets
+// - Processing pipeline tracked via UploadJob and MediaAsset.processingStatus
+// - Watch history and progress for per-user resume functionality
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum ContentType {
+  MOVIE
+  SERIES
+}
+
+enum ContentStatus {
+  DRAFT
+  PROCESSING
+  READY
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum MaturityRating {
+  G
+  PG
+  PG_13 @map("PG-13")
+  R
+  NC_17 @map("NC-17")
+  TV_Y  @map("TV-Y")
+  TV_G  @map("TV-G")
+  TV_PG @map("TV-PG")
+  TV_14 @map("TV-14")
+  TV_MA @map("TV-MA")
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum UploadJobStatus {
+  PENDING
+  UPLOADING
+  VALIDATING
+  PROCESSING
+  GENERATING_HLS
+  READY
+  FAILED
+}
+
+enum VideoCodec {
+  H264
+  H265
+  VP9
+  AV1
+}
+
+enum VideoResolution {
+  RES_2160P @map("2160p")
+  RES_1080P @map("1080p")
+  RES_720P  @map("720p")
+  RES_480P  @map("480p")
+  RES_360P  @map("360p")
+}
+
+enum SubtitleFormat {
+  VTT
+  SRT
+  ASS
+}
+
+// =============================================================================
+// AUTHENTICATION
+// =============================================================================
+
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admins")
+}
+
+// =============================================================================
+// TAXONOMY
+// =============================================================================
+
+model Genre {
+  id      String         @id @default(cuid())
+  name    String         @unique
+  slug    String         @unique
+  content ContentGenre[]
+
+  @@map("genres")
+}
+
+model Category {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  slug        String            @unique
+  description String?
+  sortOrder   Int               @default(0)
+  content     ContentCategory[]
+
+  @@index([sortOrder])
+  @@map("categories")
+}
+
+// =============================================================================
+// CONTENT — Movies & Series (unified content table)
+// =============================================================================
+
+model Content {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  description    String         @db.Text
+  type           ContentType
+  status         ContentStatus  @default(DRAFT)
+  releaseYear    Int
+  duration       Int? // seconds — populated for MOVIE, null for SERIES
+  maturityRating MaturityRating @default(PG_13)
+  featured       Boolean        @default(false)
+
+  // Storage keys — NOT filesystem paths
+  // These are relative keys passed to StorageService to resolve to URLs
+  posterKey   String?
+  backdropKey String?
+  trailerKey  String?
+
+  tags String[] @default([])
+
+  // For MOVIE: direct media asset
+  mediaAsset MediaAsset?
+
+  // For SERIES: seasons
+  seasons Season[]
+
+  // Taxonomy relations
+  genres     ContentGenre[]
+  categories ContentCategory[]
+
+  // Watch tracking
+  watchProgress WatchProgress[]
+  watchHistory  WatchHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([featured])
+  @@index([releaseYear])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([createdAt])
+  @@index([type, status])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, featured, createdAt(sort: Desc)])
+  @@index([status, type, updatedAt(sort: Desc)])
+  @@map("content")
+}
+
+// ---------------------------------------------------------------------------
+// Many-to-many join tables
+// ---------------------------------------------------------------------------
+
+model ContentGenre {
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId String
+  genre     Genre   @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  genreId   String
+
+  @@id([contentId, genreId])
+  @@index([genreId])
+  @@map("content_genres")
+}
+
+model ContentCategory {
+  content    Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId  String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  @@id([contentId, categoryId])
+  @@index([categoryId])
+  @@map("content_categories")
+}
+
+// =============================================================================
+// SERIES HIERARCHY
+// =============================================================================
+
+model Season {
+  id           String    @id @default(cuid())
+  series       Content   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  seriesId     String
+  seasonNumber Int
+  title        String
+  description  String?   @db.Text
+  releaseYear  Int?
+  posterKey    String?
+  episodes     Episode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seriesId, seasonNumber])
+  @@map("seasons")
+}
+
+model Episode {
+  id            String        @id @default(cuid())
+  season        Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId      String
+  episodeNumber Int
+  title         String
+  description   String?       @db.Text
+  duration      Int? // seconds
+  thumbnailKey  String?
+  status        ContentStatus @default(DRAFT)
+
+  mediaAsset MediaAsset?
+
+  watchProgress WatchProgress[]
+  watchHistory  WatchHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seasonId, episodeNumber])
+  @@index([status])
+  @@map("episodes")
+}
+
+// =============================================================================
+// MEDIA ASSETS & VIDEO VARIANTS
+// =============================================================================
+
+model MediaAsset {
+  id String @id @default(cuid())
+
+  // Belongs to either a movie (Content) OR an episode — never both
+  content   Content? @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId String?  @unique
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId String?  @unique
+
+  // Original upload metadata
+  originalFilename String
+  // storageKey is the key passed to StorageService — NOT a raw path
+  storageKey       String           @unique
+  mimeType         String
+  fileSize         BigInt // bytes — BigInt supports files > 2 GB
+  processingStatus ProcessingStatus @default(PENDING)
+
+  // Populated after ffprobe analysis
+  durationSeconds Float?
+  width           Int?
+  height          Int?
+  codec           String?
+  bitrate         Int? // kbps
+  frameRate       Float?
+
+  // Master HLS manifest key (populated after HLS generation)
+  hlsMasterKey String?
+
+  // Thumbnail storage key (populated after thumbnail extraction)
+  thumbnailKey String?
+
+  errorMessage          String?
+  processingStartedAt   DateTime?
+  processingCompletedAt DateTime?
+
+  variants      VideoVariant[]
+  subtitles     Subtitle[]
+  uploadJob     UploadJob?
+  watchProgress WatchProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([processingStatus])
+  @@index([createdAt(sort: Desc)])
+  @@map("media_assets")
+}
+
+model VideoVariant {
+  id           String          @id @default(cuid())
+  mediaAsset   MediaAsset      @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  resolution   VideoResolution
+  bitrate      Int? // kbps
+  codec        VideoCodec      @default(H264)
+  // Storage key for the HLS variant manifest (.m3u8)
+  manifestKey  String?
+  // Storage key for direct MP4 variant (MVP streaming)
+  mp4Key       String?
+  fileSize     BigInt?
+  width        Int?
+  height       Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([mediaAssetId, resolution])
+  @@index([mediaAssetId])
+  @@map("video_variants")
+}
+
+// =============================================================================
+// SUBTITLES
+// =============================================================================
+
+model Subtitle {
+  id           String         @id @default(cuid())
+  mediaAsset   MediaAsset     @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  language     String // BCP 47 language tag e.g. "en", "es", "fr"
+  label        String // Human-readable e.g. "English", "Español"
+  format       SubtitleFormat @default(VTT)
+  storageKey   String
+  isDefault    Boolean        @default(false)
+  isForced     Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([mediaAssetId, language])
+  @@index([mediaAssetId])
+  @@map("subtitles")
+}
+
+// =============================================================================
+// UPLOAD JOBS
+// Processing pipeline state machine
+// =============================================================================
+
+model UploadJob {
+  id           String      @id @default(cuid())
+  mediaAsset   MediaAsset? @relation(fields: [mediaAssetId], references: [id])
+  mediaAssetId String?     @unique
+
+  status           UploadJobStatus @default(PENDING)
+  originalFilename String
+  mimeType         String?
+  fileSize         BigInt?
+
+  // BullMQ job ID for tracking
+  bullJobId String?
+
+  // Upload progress 0–100
+  uploadProgress     Int @default(0)
+  // Processing progress 0–100 (FFmpeg)
+  processingProgress Int @default(0)
+
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("upload_jobs")
+}
+
+// =============================================================================
+// WATCH PROGRESS & HISTORY
+// =============================================================================
+
+model WatchProgress {
+  id String @id @default(cuid())
+
+  userId    String?
+  sessionId String?
+
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId String
+
+  // For series: also track episode-level progress
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId String?
+
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+
+  position   Float // seconds from start
+  duration   Float // total duration in seconds
+  percentage Float // 0–100
+  completed  Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([userId, mediaAssetId])
+  @@unique([sessionId, mediaAssetId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([contentId])
+  @@index([episodeId])
+  @@index([updatedAt])
+  @@index([userId, completed, updatedAt(sort: Desc)])
+  @@index([sessionId, completed, updatedAt(sort: Desc)])
+  @@map("watch_progress")
+}
+
+model WatchHistory {
+  id        String @id @default(cuid())
+  sessionId String
+
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId String
+
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId String?
+
+  watchedAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([contentId])
+  @@index([watchedAt])
+  @@map("watch_history")
+}
+
+// =============================================================================
+// AUDIT LOG
+// =============================================================================
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  resource   String
+  resourceId String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
+}

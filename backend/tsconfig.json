@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "..",
+    "lib": ["ES2022"],
+    "paths": {
+      "@moonview/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "scripts/load-test.ts", "prisma/seed-performance-fixtures.ts", "../shared/src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

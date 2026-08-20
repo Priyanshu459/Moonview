@@ -1,0 +1,274 @@
+/* =============================================================================
+   Moonview — Global Design System
+   Phase 1: Foundation tokens and resets only.
+   Component styles added in Phase 9 (Netflix UI).
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Design Tokens — CSS Custom Properties
+   --------------------------------------------------------------------------- */
+:root {
+  /* Brand colours */
+  --color-brand-primary:    #7C6CFF;   /* Violet */
+  --color-brand-secondary:  #9184FF;   /* Violet hover */
+  --color-brand-accent:     #35C2FF;   /* Blue secondary */
+
+  /* Backgrounds */
+  --color-bg-base:          #070A12;   /* Deep midnight */
+  --color-bg-surface:       #0D1220;   /* Cards, panels */
+  --color-bg-elevated:      #151C2D;   /* Surface hover / modals */
+  --color-bg-overlay:       rgba(7, 10, 18, 0.8); /* Scrims */
+
+  /* Text */
+  --color-text-primary:     #F5F7FF;
+  --color-text-secondary:   #A8B0C2;
+  --color-text-muted:       #6B7280;
+  --color-text-inverse:     #070A12;
+
+  /* Borders */
+  --color-border-subtle:    #252D40;
+  --color-border-default:   #252D40;
+  --color-border-strong:    #3A4560;
+
+  /* Status colours */
+  --color-success:          #35D07F;
+  --color-warning:          #f59e0b;
+  --color-error:            #FF5F6D;
+  --color-info:             #35C2FF;
+
+  /* Typography */
+  --font-sans:      'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:      'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* Font sizes (clamp for fluid typography) */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.875rem;   /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg:   1.125rem;   /* 18px */
+  --text-xl:   1.25rem;    /* 20px */
+  --text-2xl:  1.5rem;     /* 24px */
+  --text-3xl:  1.875rem;   /* 30px */
+  --text-4xl:  2.25rem;    /* 36px */
+  --text-5xl:  3rem;       /* 48px */
+  --text-6xl:  clamp(2.5rem, 6vw, 4.5rem);
+
+  /* Font weights */
+  --font-light:     300;
+  --font-regular:   400;
+  --font-medium:    500;
+  --font-semibold:  600;
+  --font-bold:      700;
+  --font-extrabold: 800;
+  --font-black:     900;
+
+  /* Spacing (4px base grid) */
+  --space-1:   0.25rem;   /* 4px */
+  --space-2:   0.5rem;    /* 8px */
+  --space-3:   0.75rem;   /* 12px */
+  --space-4:   1rem;      /* 16px */
+  --space-5:   1.25rem;   /* 20px */
+  --space-6:   1.5rem;    /* 24px */
+  --space-8:   2rem;      /* 32px */
+  --space-10:  2.5rem;    /* 40px */
+  --space-12:  3rem;      /* 48px */
+  --space-16:  4rem;      /* 64px */
+  --space-20:  5rem;      /* 80px */
+  --space-24:  6rem;      /* 96px */
+
+  /* Border radius */
+  --radius-sm:   0.25rem;  /* 4px */
+  --radius-md:   0.5rem;   /* 8px */
+  --radius-lg:   0.75rem;  /* 12px */
+  --radius-xl:   1rem;     /* 16px */
+  --radius-2xl:  1.5rem;   /* 24px */
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg:  0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-xl:  0 20px 60px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.6);
+
+  /* Transitions */
+  --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base:   250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index layers */
+  --z-base:     0;
+  --z-raised:   10;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-overlay:  300;
+  --z-modal:    400;
+  --z-toast:    500;
+  --z-tooltip:  600;
+}
+
+/* ---------------------------------------------------------------------------
+   CSS Reset (modern, minimal)
+   --------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-regular);
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Utility Classes (minimal — components will use dedicated CSS)
+   --------------------------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.gradient-overlay-bottom {
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 10, 15, 0) 0%,
+    rgba(10, 10, 15, 0.4) 50%,
+    rgba(10, 10, 15, 0.8) 75%,
+    var(--color-bg-base) 100%
+  );
+}
+
+.gradient-overlay-vignette {
+  background: radial-gradient(
+    circle at center,
+    rgba(10, 10, 15, 0) 40%,
+    rgba(10, 10, 15, 0.7) 100%
+  );
+}
+
+.text-shadow {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------------------------------------------------------------------------
+   Loading / Skeleton Base
+   --------------------------------------------------------------------------- */
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-surface)  25%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-surface)  75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbar Styling
+   --------------------------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Focus styles (accessible, not obtrusive)
+   --------------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Selection
+   --------------------------------------------------------------------------- */
+
+::selection {
+  background: rgba(124, 108, 255, 0.3);
+  color: var(--color-text-primary);
+}

@@ -1,0 +1,68 @@
+{
+  "name": "@moonview/backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Moonview API server — Express 5 + TypeScript + Prisma",
+  "type": "module",
+  "main": "./dist/backend/src/index.js",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/backend/src/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build --silent && node --env-file=.env --test --test-concurrency=1 test/storage-containment.test.mjs test/media-processing.test.mjs",
+    "benchmark": "npm run build --silent && node --env-file=.env dist/backend/scripts/load-test.js",
+    "fixtures:performance": "npm run build --silent && node --env-file=.env dist/backend/prisma/seed-performance-fixtures.js",
+    "lint": "eslint src --ext .ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@moonview/shared": "*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "argon2": "^0.45.1",
+    "bullmq": "^6.1.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "pg": "^8.23.0",
+    "pino": "^10.3.1",
+    "pino-http": "^10.4.0",
+    "sanitize-filename": "^1.6.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
+    "deepmerge-ts": "^8.0.1",
+    "form-data": "^4.0.6",
+    "node-fetch": "^3.3.2",
+    "pino-pretty": "^13.0.0",
+    "prisma": "^7.9.1",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
+  }
+}
