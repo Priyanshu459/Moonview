@@ -52,6 +52,12 @@ export function createApp() {
         // Allow requests with no origin (mobile apps, curl, server-to-server)
         if (!origin) return callback(null, true);
         if (config.CORS_ORIGINS.includes(origin)) return callback(null, true);
+
+        // Testing exception for Cloudflare Quick Tunnel (dynamic generated hostname)
+        if (process.env.PUBLIC_TEST_MODE === 'true' && process.env.PUBLIC_TEST_ORIGIN && origin === process.env.PUBLIC_TEST_ORIGIN) {
+          return callback(null, true);
+        }
+
         callback(new Error(`CORS policy does not allow origin: ${origin}`));
       },
       credentials: true, // Required for HTTP-only cookies

@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { getHomeContent } from '../controllers/content.controller.js';
+import { getBrowseContent, getHomeContent } from '../controllers/content.controller.js';
 
 const router = Router();
 
 router.get('/home', getHomeContent);
+router.get('/browse', getBrowseContent);
 
 export default router;

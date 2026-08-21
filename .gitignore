@@ -70,3 +70,7 @@ backend/src/generated/
 
 # PM2
 .pm2/
+backend/media/hls-private/
+backend/public-media/
+backend/scripts/.pids
+scripts/*.log

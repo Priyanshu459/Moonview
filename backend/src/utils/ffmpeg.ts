@@ -26,7 +26,7 @@ export const getTargetResolutions = (sourceWidth: number, sourceHeight: number):
   // We'll use height for standard matching assuming landscape is standard.
   // If it's a vertical video (width < height), width is the limiting factor.
   const sourceLimit = Math.min(sourceWidth, sourceHeight);
-  
+
   return STANDARD_RESOLUTIONS.filter(res => Math.min(res.width, res.height) <= sourceLimit);
 };
 
@@ -35,16 +35,19 @@ export const generateHlsVariants = (
   targetDir: string,
   resolutions: ResolutionConfig[],
   hasAudio = true,
+  jobId?: string,
+  mediaAssetId?: string,
+  onProgress?: (timeSec: number) => void
 ): Promise<void> => {
   return (async () => {
     if (resolutions.length === 0) {
       throw new Error('Source video is below the minimum supported HLS resolution');
     }
-    // Basic arguments
     const args: string[] = [
       '-i', sourcePath,
       '-y', // Overwrite
       '-v', 'error', // Reduce log noise
+      '-progress', 'pipe:1', // Output progress to stdout
       '-filter_threads', String(config.FFMPEG_THREADS),
       '-filter_complex_threads', String(config.FFMPEG_THREADS),
     ];
@@ -60,10 +63,10 @@ export const generateHlsVariants = (
       // -2 in one dimension tells FFmpeg to maintain aspect ratio and ensure divisible by 2.
       // Since we know target width/height, we scale to fit within the box.
       filterComplex += `[0:v]scale=w=${res.width}:h=${res.height}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[v${index}];`;
-      
+
       mapArgs.push('-map', `[v${index}]`);
       if (hasAudio) mapArgs.push('-map', '0:a:0?');
-      
+
       // Setup encoding settings for each variant
       // Video
       formatArgs.push(`-c:v:${index}`, 'libx264');
@@ -75,7 +78,7 @@ export const generateHlsVariants = (
       formatArgs.push(`-g:v:${index}`, '120');
       formatArgs.push(`-sc_threshold:v:${index}`, '0');
       formatArgs.push(`-force_key_frames:v:${index}`, 'expr:gte(t,n_forced*4)');
-      
+
       // Audio
       if (hasAudio) {
         formatArgs.push(`-c:a:${index}`, 'aac');
@@ -106,6 +109,18 @@ export const generateHlsVariants = (
       args,
       label: 'FFmpeg HLS generation',
       timeoutMs: config.MEDIA_PROCESS_TIMEOUT_MS,
+      jobId,
+      mediaAssetId,
+      onProgress: onProgress ? (line: string) => {
+        // Parse "out_time_us=5000000" (microseconds)
+        const match = line.match(/^out_time_us=(\d+)/);
+        if (match && match[1]) {
+          const us = parseInt(match[1], 10);
+          if (!isNaN(us)) {
+            onProgress(us / 1000000);
+          }
+        }
+      } : undefined,
     });
   })();
 };
@@ -113,7 +128,9 @@ export const generateHlsVariants = (
 export const generateThumbnail = (
   sourcePath: string,
   targetPath: string,
-  timeOffset: number = 2
+  timeOffset: number = 2,
+  jobId?: string,
+  mediaAssetId?: string
 ): Promise<void> => {
   return (async () => {
     const args = [
@@ -130,6 +147,8 @@ export const generateThumbnail = (
       args,
       label: 'FFmpeg thumbnail generation',
       timeoutMs: Math.min(config.MEDIA_PROCESS_TIMEOUT_MS, 5 * 60_000),
+      jobId,
+      mediaAssetId,
     });
   })();
 };

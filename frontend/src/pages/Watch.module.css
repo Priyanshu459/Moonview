@@ -1,0 +1,53 @@
+.watchShell {
+  position: relative;
+  min-height: 100dvh;
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+}
+
+.playerStage {
+  min-height: 100dvh;
+  height: 100dvh;
+  background: #000;
+}
+
+.stateLayer {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.backButton {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  z-index: 60;
+  width: 48px;
+  height: 48px;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(13, 18, 32, 0.52);
+  border: 1px solid rgba(145, 132, 255, 0.26);
+  border-radius: 999px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 8px 28px rgba(124, 108, 255, 0.18);
+  backdrop-filter: blur(16px);
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.backButton:hover,
+.backButton:focus-visible {
+  transform: scale(1.06);
+  background: rgba(124, 108, 255, 0.2);
+  border-color: rgba(53, 194, 255, 0.38);
+  outline: none;
+}
+
+@media (max-width: 760px) {
+  .backButton {
+    width: 44px;
+    height: 44px;
+  }
+}

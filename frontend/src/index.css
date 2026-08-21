@@ -272,3 +272,9 @@ ol {
   background: rgba(124, 108, 255, 0.3);
   color: var(--color-text-primary);
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -22,11 +22,11 @@ export class AdminTaxonomyController {
 
   async createGenre(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const parsed = taxonomySchema.parse(req.body);
-      
+
       const genre = await prisma.genre.create({ data: parsed });
-      
+
       await auditService.log({
         adminId,
         action: AuditAction.CREATE_GENRE,
@@ -44,12 +44,12 @@ export class AdminTaxonomyController {
 
   async updateGenre(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
       const parsed = taxonomySchema.parse(req.body);
-      
+
       const genre = await prisma.genre.update({ where: { id }, data: parsed });
-      
+
       await auditService.log({
         adminId,
         action: AuditAction.UPDATE_GENRE,
@@ -67,7 +67,7 @@ export class AdminTaxonomyController {
 
   async deleteGenre(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const count = await prisma.contentGenre.count({ where: { genreId: id } });
@@ -104,14 +104,14 @@ export class AdminTaxonomyController {
 
   async createCategory(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const parsed = taxonomySchema.extend({
         description: z.string().optional(),
         sortOrder: z.number().int().default(0)
       }).parse(req.body);
-      
+
       const category = await prisma.category.create({ data: parsed });
-      
+
       await auditService.log({
         adminId,
         action: AuditAction.CREATE_CATEGORY,
@@ -129,15 +129,15 @@ export class AdminTaxonomyController {
 
   async updateCategory(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
       const parsed = taxonomySchema.extend({
         description: z.string().optional(),
         sortOrder: z.number().int().default(0)
       }).parse(req.body);
-      
+
       const category = await prisma.category.update({ where: { id }, data: parsed });
-      
+
       await auditService.log({
         adminId,
         action: AuditAction.UPDATE_CATEGORY,
@@ -155,7 +155,7 @@ export class AdminTaxonomyController {
 
   async deleteCategory(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const count = await prisma.contentCategory.count({ where: { categoryId: id } });

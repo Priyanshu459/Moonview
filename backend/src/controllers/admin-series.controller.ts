@@ -24,7 +24,7 @@ const episodeSchema = z.object({
 export class AdminSeriesController {
 
   // SEASONS
-  
+
   async listSeasons(req: Request, res: Response) {
     try {
       const { seriesId } = req.params as { seriesId: string };
@@ -41,10 +41,10 @@ export class AdminSeriesController {
 
   async createSeason(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { seriesId } = req.params as { seriesId: string };
       const parsed = seasonSchema.parse(req.body);
-      
+
       const existing = await prisma.season.findUnique({ where: { seriesId_seasonNumber: { seriesId, seasonNumber: parsed.seasonNumber } } });
       if (existing) return res.status(400).json({ error: { message: 'Season number already exists for this series' } });
 
@@ -69,10 +69,10 @@ export class AdminSeriesController {
 
   async updateSeason(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { seriesId, seasonId } = req.params as { seriesId: string, seasonId: string };
       const parsed = seasonSchema.parse(req.body);
-      
+
       const existing = await prisma.season.findUnique({ where: { seriesId_seasonNumber: { seriesId, seasonNumber: parsed.seasonNumber } } });
       if (existing && existing.id !== seasonId) return res.status(400).json({ error: { message: 'Season number already exists for this series' } });
 
@@ -97,12 +97,12 @@ export class AdminSeriesController {
 
   async deleteSeason(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { seasonId } = req.params as { seasonId: string };
-      
+
       const season = await prisma.season.findUnique({ where: { id: seasonId }, include: { episodes: true } });
       if (!season) return res.status(404).json({ error: { message: 'Season not found' } });
-      
+
       if (season.episodes.length > 0) {
         return res.status(400).json({ error: { message: 'Cannot delete season with episodes. Delete episodes first.' } });
       }
@@ -140,7 +140,7 @@ export class AdminSeriesController {
 
   async createEpisode(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { seasonId } = req.params as { seasonId: string };
       const parsed = episodeSchema.parse(req.body);
 
@@ -189,7 +189,7 @@ export class AdminSeriesController {
 
   async updateEpisode(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { seasonId, episodeId } = req.params as { seasonId: string, episodeId: string };
       const parsed = episodeSchema.parse(req.body);
 
@@ -243,9 +243,9 @@ export class AdminSeriesController {
 
   async deleteEpisode(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { episodeId } = req.params as { episodeId: string };
-      
+
       const episode = await prisma.episode.findUnique({ where: { id: episodeId }, include: { mediaAsset: true } });
       if (!episode) return res.status(404).json({ error: { message: 'Episode not found' } });
 
@@ -270,7 +270,7 @@ export class AdminSeriesController {
 
   async publishEpisode(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { episodeId } = req.params as { episodeId: string };
 
       const episode = await prisma.episode.findUnique({
@@ -312,7 +312,7 @@ export class AdminSeriesController {
 
   async unpublishEpisode(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { episodeId } = req.params as { episodeId: string };
 
       const episode = await prisma.episode.findUnique({

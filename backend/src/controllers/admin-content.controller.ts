@@ -23,7 +23,7 @@ const contentSchema = z.object({
 });
 
 export class AdminContentController {
-  
+
   async listContent(req: Request, res: Response) {
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -101,7 +101,7 @@ export class AdminContentController {
 
   async createContent(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId; // auth token has userId
+      const adminId = req.user!.id; // auth token has id
       const parsed = contentSchema.parse(req.body);
 
       // Check slug collision
@@ -169,7 +169,7 @@ export class AdminContentController {
 
   async updateContent(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
       const parsed = contentSchema.parse(req.body);
 
@@ -179,7 +179,7 @@ export class AdminContentController {
         return res.status(400).json({ error: { message: 'Slug already exists' } });
       }
 
-      const currentContent = await prisma.content.findUnique({ 
+      const currentContent = await prisma.content.findUnique({
         where: { id },
         select: { id: true, mediaAsset: { select: { id: true } } },
       });
@@ -265,7 +265,7 @@ export class AdminContentController {
 
   async publishContent(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const content = await prisma.content.findUnique({
@@ -316,7 +316,7 @@ export class AdminContentController {
 
   async unpublishContent(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const content = await prisma.content.findUnique({
@@ -357,7 +357,7 @@ export class AdminContentController {
 
   async deleteContent(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const content = await prisma.content.findUnique({

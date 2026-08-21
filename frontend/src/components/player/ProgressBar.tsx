@@ -10,7 +10,6 @@ export function ProgressBar({ videoRef }: ProgressBarProps) {
   const bufferRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  
   const isDragging = useRef(false);
 
   useEffect(() => {
@@ -20,7 +19,6 @@ export function ProgressBar({ videoRef }: ProgressBarProps) {
     const updateProgress = () => {
       if (isDragging.current || !video.duration) return;
       const percent = (video.currentTime / video.duration) * 100;
-      
       if (fillRef.current) fillRef.current.style.width = `${percent}%`;
       if (thumbRef.current) thumbRef.current.style.left = `${percent}%`;
     };
@@ -28,67 +26,69 @@ export function ProgressBar({ videoRef }: ProgressBarProps) {
     const updateBuffer = () => {
       if (!video.duration || video.buffered.length === 0) return;
       const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-      const percent = (bufferedEnd / video.duration) * 100;
+      const percent = Math.min(100, (bufferedEnd / video.duration) * 100);
       if (bufferRef.current) bufferRef.current.style.width = `${percent}%`;
     };
 
     video.addEventListener('timeupdate', updateProgress);
     video.addEventListener('progress', updateBuffer);
-
+    video.addEventListener('loadedmetadata', updateProgress);
     return () => {
       video.removeEventListener('timeupdate', updateProgress);
       video.removeEventListener('progress', updateBuffer);
+      video.removeEventListener('loadedmetadata', updateProgress);
     };
   }, [videoRef]);
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement> | MouseEvent, forceUpdate = false) => {
-    if (!videoRef.current || !trackRef.current) return;
-    if (!isDragging.current && !forceUpdate) return;
+  const seekFromClientX = (clientX: number, commit: boolean) => {
+    const video = videoRef.current;
+    const track = trackRef.current;
+    if (!video || !track || !Number.isFinite(video.duration) || video.duration <= 0) return;
 
-    const rect = trackRef.current.getBoundingClientRect();
-    const pos = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const rect = track.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percent = pos / rect.width;
-    
     if (fillRef.current) fillRef.current.style.width = `${percent * 100}%`;
     if (thumbRef.current) thumbRef.current.style.left = `${percent * 100}%`;
-
-    // Only update video time if we are done dragging or it's a click
-    if (forceUpdate) {
-      videoRef.current.currentTime = percent * videoRef.current.duration;
-    }
+    if (commit) video.currentTime = percent * video.duration;
   };
 
   useEffect(() => {
-    const handleMouseUp = (e: MouseEvent) => {
-      if (isDragging.current) {
-        handleSeek(e, true);
-        isDragging.current = false;
-      }
-    };
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging.current) {
-        handleSeek(e, false);
-      }
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDragging.current) return;
+      seekFromClientX(event.clientX, false);
     };
 
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mousemove', handleMouseMove);
+    const handlePointerUp = (event: PointerEvent) => {
+      if (!isDragging.current) return;
+      seekFromClientX(event.clientX, true);
+      isDragging.current = false;
+      trackRef.current?.releasePointerCapture?.(event.pointerId);
+    };
 
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
     return () => {
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
 
   return (
-    <div 
-      className={styles.progressContainer}
-      onMouseDown={(e) => {
-        isDragging.current = true;
-        handleSeek(e, false); // visual update immediately
-      }}
+    <div
       ref={trackRef}
+      className={styles.progressContainer}
+      onPointerDown={(event) => {
+        isDragging.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        seekFromClientX(event.clientX, true);
+      }}
+      role="slider"
+      aria-label="Playback progress"
+      aria-valuemin={0}
+      aria-valuemax={100}
     >
       <div className={styles.progressTrack}>
         <div ref={bufferRef} className={styles.progressBuffered} style={{ width: '0%' }} />

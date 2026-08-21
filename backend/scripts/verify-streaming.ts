@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert';
 import http from 'node:http';
-import { prisma } from '../src/config/database.js';
+import { prisma, disconnectDatabase } from '../src/config/database.js';
 import { config } from '../src/config/index.js';
 
 const TEST_PORT = process.env.PORT || 3001;
@@ -85,7 +85,7 @@ async function setupTestData() {
   await fs.mkdir(path.join(config.STORAGE_ROOT, 'originals'), { recursive: true });
   await fs.mkdir(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid'), { recursive: true });
   await fs.mkdir(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid'), { recursive: true });
-  
+
   const dummyVideo = Buffer.alloc(1000, 'A');
   await fs.writeFile(path.join(config.STORAGE_ROOT, 'originals', 'test-uuid-pub-rdy.mp4'), dummyVideo);
   await fs.writeFile(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid', 'master.m3u8'), '#EXTM3U\n');
@@ -104,7 +104,11 @@ async function runTests() {
     // ✓ READY + PUBLISHED → allowed
     let res = await fetchStream(ids.mPubRdy.mediaAsset!.id);
     assert.strictEqual(res.status, 200, 'READY + PUBLISHED should be allowed');
-    
+
+    res = await fetchStream(ids.mPubRdy.id);
+    assert.strictEqual(res.status, 200, 'Published movie content ID should resolve to its media asset');
+    assert.strictEqual(res.data.data.mediaId, ids.mPubRdy.mediaAsset!.id, 'Content ID stream response returns media asset ID');
+
     // ✓ READY + UNPUBLISHED → blocked
     res = await fetchStream(ids.mUnpubRdy.mediaAsset!.id);
     assert.strictEqual(res.status, 403, 'READY + UNPUBLISHED should be blocked');
@@ -124,7 +128,7 @@ async function runTests() {
 
     console.log('\n--- Test: MP4 Fallback Range Handling ---');
     const pubId = ids.mPubRdy.mediaAsset!.id;
-    
+
     // ✓ fallback full-file response
     let fb = await fetchFallback(pubId);
     assert.strictEqual(fb.status, 200);
@@ -191,6 +195,7 @@ async function runTests() {
       await fs.rm(path.join(config.STORAGE_ROOT, 'hls-private', 'test-uuid'), { recursive: true, force: true });
       await fs.rm(path.join(config.PUBLIC_MEDIA_ROOT, 'hls', 'test-uuid'), { recursive: true, force: true });
     }
+    await disconnectDatabase();
   }
 }
 

@@ -21,8 +21,10 @@ const mediaListSelect = {
   height: true,
   createdAt: true,
   updatedAt: true,
+  processingStartedAt: true,
   content: { select: { title: true, type: true } },
   episode: { select: { title: true, season: { select: { series: { select: { title: true } } } } } },
+  uploadJob: { select: { processingProgress: true } },
 } as const;
 
 export class AdminMediaController {
@@ -44,8 +46,12 @@ export class AdminMediaController {
 
       res.json({
         data: data.map((item: any) => {
-          const { errorMessage, ...asset } = item;
-          return { ...asset, processingError: errorMessage };
+          const { errorMessage, uploadJob, ...asset } = item;
+          return {
+            ...asset,
+            processingError: errorMessage,
+            processingProgress: uploadJob?.processingProgress ?? 0
+          };
         }),
         meta: { total, page, limit, hasNext: (page * limit) < total },
       });
@@ -63,8 +69,12 @@ export class AdminMediaController {
         select: mediaListSelect,
       });
       if (!asset) return res.status(404).json({ error: { message: 'Media Asset not found' } });
-      const { errorMessage, ...safeAsset } = asset;
-      res.json({ ...safeAsset, processingError: errorMessage });
+      const { errorMessage, uploadJob, ...safeAsset } = asset as any;
+      res.json({
+        ...safeAsset,
+        processingError: errorMessage,
+        processingProgress: uploadJob?.processingProgress ?? 0
+      });
     } catch (error) {
       console.error('[getMedia]', error);
       res.status(500).json({ error: { message: 'Failed to get media asset' } });
@@ -73,7 +83,7 @@ export class AdminMediaController {
 
   async deleteMedia(req: Request, res: Response) {
     try {
-      const adminId = (req as any).user.userId;
+      const adminId = req.user!.id;
       const { id } = req.params as { id: string };
 
       const asset = await prisma.mediaAsset.findUnique({

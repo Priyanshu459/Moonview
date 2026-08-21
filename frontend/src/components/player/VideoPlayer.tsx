@@ -23,7 +23,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const inactivityTimerRef = useRef<number | null>(null);
@@ -79,13 +79,6 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
     };
 
     const initialize = async () => {
-      // Native HLS avoids downloading hls.js on browsers that support it.
-      if (hlsUrl && video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = hlsUrl;
-        video.load();
-        return;
-      }
-
       if (!hlsUrl) {
         useFallback();
         return;
@@ -95,11 +88,23 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
         const { default: Hls } = await import('hls.js');
         if (disposed) return;
         if (!Hls.isSupported()) {
-          useFallback();
+          if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = hlsUrl;
+            video.load();
+          } else {
+            useFallback();
+          }
           return;
         }
 
-        const hls = new Hls({ maxMaxBufferLength: 30, backBufferLength: 30 });
+        const hls = new Hls({
+          startLevel: -1,
+          capLevelToPlayerSize: true,
+          maxBufferLength: 20,
+          maxMaxBufferLength: 30,
+          backBufferLength: 15,
+          enableWorker: true,
+        });
         hlsRef.current = hls;
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
@@ -107,7 +112,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
           setIsReady(true);
           setIsLoading(false);
-          setLevels(data.levels.map((level, index) => ({ id: index, height: level.height })));
+          setLevels(data.levels.map((level, index) => ({ id: index, height: level.height })).filter((level) => level.height > 0));
         });
         hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
           setCurrentLevel(hls.autoLevelEnabled ? -1 : data.level);
@@ -151,19 +156,19 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
     };
 
     const handlePlay = () => setIsPlaying(true);
-    
+
     const handlePause = () => {
       setIsPlaying(false);
       saveProgress(video.currentTime, video.duration);
     };
-    
+
     const handleWaiting = () => setIsLoading(true);
     const handlePlaying = () => setIsLoading(false);
-    
+
     const handleError = () => {
       if (!hlsRef.current) setErrorMsg('Media playback failed.');
     };
-    
+
     const handleEnded = () => {
       setIsPlaying(false);
       saveProgress(video.duration, video.duration);
@@ -173,7 +178,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
     const handleTimeUpdate = () => {
       if (video.duration > 0) {
         latestPlaybackStateRef.current = { position: video.currentTime, duration: video.duration };
-        
+
         const now = Date.now();
         // Send progress at most once every 10 seconds
         if (now - lastProgressTimeRef.current >= 10000) {
@@ -210,7 +215,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
       video.removeEventListener('ended', handleEnded);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      
+
       // Save on unmount
       const { position, duration } = latestPlaybackStateRef.current;
       if (position > 0 && duration > 0) {
@@ -244,7 +249,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName) || (e.target as HTMLElement).isContentEditable) {
         return;
       }
-      
+
       const video = videoRef.current;
       if (!video) return;
 
@@ -317,7 +322,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={styles.playerContainer}
       onMouseMove={resetInactivityTimer}
@@ -329,6 +334,8 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
         className={styles.video}
         onClick={togglePlay}
         playsInline
+        preload="metadata"
+        controls={false}
       />
 
       {errorMsg && (
@@ -355,7 +362,7 @@ export function VideoPlayer({ mediaId, hlsUrl, fallbackUrl, resumePosition = 0, 
 
       <div className={`${styles.overlay} ${!controlsVisible ? styles.hidden : ''}`}>
         <div className={styles.topGradient} />
-        <PlayerControls 
+        <PlayerControls
           videoRef={videoRef}
           isPlaying={isPlaying}
           onPlayPause={togglePlay}

@@ -27,6 +27,10 @@ test('public HLS URLs are derived from private HLS keys only', () => {
     publicMediaUrlForPrivateKey('hls-private/asset-1/master.m3u8'),
     '/media/hls/asset-1/master.m3u8',
   );
+  assert.equal(
+    publicMediaUrlForPrivateKey('hls/asset-1/master.m3u8'),
+    '/media/hls/asset-1/master.m3u8',
+  );
   assert.throws(() => publicMediaUrlForPrivateKey('originals/asset.mp4'));
 });
 

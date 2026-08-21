@@ -9,26 +9,39 @@ import { publicMediaUrlForPrivateKey } from '../services/media-exposure.service.
  * Validates if the media asset can be publicly streamed.
  * Must be READY, and associated content must be PUBLISHED.
  */
-async function validateMediaAccess(mediaId: string) {
-  const asset = await prisma.mediaAsset.findUnique({
-    where: { id: mediaId },
+const streamAssetSelect = {
+  id: true,
+  storageKey: true,
+  mimeType: true,
+  processingStatus: true,
+  hlsMasterKey: true,
+  content: { select: { status: true } },
+  episode: {
     select: {
-      id: true,
-      storageKey: true,
-      mimeType: true,
-      processingStatus: true,
-      hlsMasterKey: true,
-      content: { select: { status: true } },
-      episode: {
-        select: {
-          status: true,
-          season: {
-            select: { series: { select: { status: true } } }
-          }
-        }
+      status: true,
+      season: {
+        select: { series: { select: { status: true } } }
       }
     }
+  }
+} as const;
+
+async function findStreamAsset(playbackId: string) {
+  const asset = await prisma.mediaAsset.findUnique({
+    where: { id: playbackId },
+    select: streamAssetSelect,
   });
+  if (asset) return asset;
+
+  const content = await prisma.content.findUnique({
+    where: { id: playbackId },
+    select: { mediaAsset: { select: streamAssetSelect } },
+  });
+  return content?.mediaAsset ?? null;
+}
+
+async function validateMediaAccess(playbackId: string) {
+  const asset = await findStreamAsset(playbackId);
 
   if (!asset) {
     throw new NotFoundError('Media not found');
@@ -60,10 +73,10 @@ export const getStreamInfo = async (req: Request, res: Response) => {
 
   let resumePosition = 0;
   const sessionId = req.signedCookies?.sessionId;
-  
+
   if (sessionId) {
     const progress = await prisma.watchProgress.findUnique({
-      where: { sessionId_mediaAssetId: { sessionId, mediaAssetId: mediaId } },
+      where: { sessionId_mediaAssetId: { sessionId, mediaAssetId: asset.id } },
       select: { position: true, completed: true }
     });
 
@@ -90,7 +103,7 @@ export const streamFallbackMp4 = async (req: Request, res: Response) => {
   const asset = await validateMediaAccess(mediaId);
 
   // 2. Resolve safe path
-  const storageKey = asset.storageKey; 
+  const storageKey = asset.storageKey;
   if (!storageKey) {
     throw new NotFoundError('Storage key not found');
   }
@@ -128,7 +141,7 @@ export const streamFallbackMp4 = async (req: Request, res: Response) => {
 
     let start = 0;
     let end = fileSize - 1;
-    
+
     if (startStr && !endStr) {
       // bytes=100-
       start = parseInt(startStr, 10);
@@ -148,7 +161,7 @@ export const streamFallbackMp4 = async (req: Request, res: Response) => {
       res.json({ success: false, error: { message: 'Range not satisfiable', code: 'RANGE_NOT_SATISFIABLE' }});
       return;
     }
-    
+
     // Ensure end doesn't exceed fileSize - 1
     end = Math.min(end, fileSize - 1);
 
@@ -160,7 +173,7 @@ export const streamFallbackMp4 = async (req: Request, res: Response) => {
 
     const fileStream = fs.createReadStream(securePath, { start, end });
     res.once('close', () => fileStream.destroy());
-    
+
     fileStream.on('error', (err) => {
       if (!res.headersSent) {
         res.status(500).end();

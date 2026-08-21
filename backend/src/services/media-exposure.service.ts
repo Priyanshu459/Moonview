@@ -15,6 +15,9 @@ function publicKeyForPrivateKey(privateKey: string): string {
   if (privateKey.startsWith('hls-private/')) {
     return `hls/${privateKey.slice('hls-private/'.length)}`;
   }
+  if (privateKey.startsWith('hls/')) {
+    return privateKey;
+  }
   if (privateKey.startsWith('posters/') || privateKey.startsWith('backdrops/')) {
     return privateKey;
   }

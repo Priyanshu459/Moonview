@@ -56,12 +56,12 @@ export function MediaLibrary() {
     <div style={{ padding: '3rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 600 }}>Media Library</h1>
-        
+
         <div>
-          <input 
-            type="file" 
-            id="video-upload" 
-            style={{ display: 'none' }} 
+          <input
+            type="file"
+            id="video-upload"
+            style={{ display: 'none' }}
             accept="video/mp4,video/webm,video/x-matroska,.mp4,.webm,.mkv"
             onChange={handleUpload}
             disabled={uploading}
@@ -98,15 +98,23 @@ export function MediaLibrary() {
                   </td>
                   <td style={{ padding: '1rem' }}>{(item.fileSize / (1024 * 1024)).toFixed(2)} MB</td>
                   <td style={{ padding: '1rem' }}>
-                    <span style={{ 
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
                       fontSize: '0.8rem', padding: '0.2rem 0.5rem', borderRadius: '4px',
-                      background: item.processingStatus === 'READY' ? 'rgba(53, 208, 127, 0.1)' : 
+                      background: item.processingStatus === 'READY' ? 'rgba(53, 208, 127, 0.1)' :
                                   item.processingStatus === 'FAILED' ? 'rgba(255, 95, 109, 0.1)' : 'rgba(255,255,255,0.1)',
-                      color: item.processingStatus === 'READY' ? 'var(--color-success)' : 
+                      color: item.processingStatus === 'READY' ? 'var(--color-success)' :
                              item.processingStatus === 'FAILED' ? 'var(--color-error)' : 'white'
                     }}>
-                      {item.processingStatus}
+                      {item.processingStatus === 'PROCESSING' && typeof item.processingProgress === 'number'
+                        ? `Processing • ${item.processingProgress}%`
+                        : item.processingStatus}
                     </span>
+                    {item.processingStatus === 'PROCESSING' && item.processingStartedAt && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                        {Math.floor((Date.now() - new Date(item.processingStartedAt).getTime()) / 60000)}m {Math.floor(((Date.now() - new Date(item.processingStartedAt).getTime()) % 60000) / 1000)}s elapsed
+                      </div>
+                    )}
                     {item.processingError && <div style={{ fontSize: '0.75rem', color: 'var(--color-error)', marginTop: '0.25rem' }}>{item.processingError}</div>}
                   </td>
                   <td style={{ padding: '1rem', fontSize: '0.85rem' }}>
@@ -122,10 +130,10 @@ export function MediaLibrary() {
                     {new Date(item.createdAt).toLocaleString()}
                   </td>
                   <td style={{ padding: '1rem' }}>
-                    <Button 
-                      variant="danger" 
-                       
-                      onClick={() => { if (window.confirm('Delete this media asset?')) deleteMutation.mutate(item.id); }} 
+                    <Button
+                      variant="danger"
+
+                      onClick={() => { if (window.confirm('Delete this media asset?')) deleteMutation.mutate(item.id); }}
                       disabled={deleteMutation.isPending || item.content || item.episode}
                       title={(item.content || item.episode) ? "Cannot delete assigned media" : ""}
                     >

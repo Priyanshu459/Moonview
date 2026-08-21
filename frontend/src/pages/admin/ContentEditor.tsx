@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../../api/admin.js';
@@ -6,7 +6,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '../../components/ui/Button.js';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, Loader2, UploadCloud, X } from 'lucide-react';
 import { apiFetch } from '../../api/client.js';
 
 const contentSchema = z.object({
@@ -21,13 +21,14 @@ const contentSchema = z.object({
   posterKey: z.string().nullable().optional(),
   backdropKey: z.string().nullable().optional(),
   trailerKey: z.string().nullable().optional(),
-  tags: z.string().optional(), // We'll convert to array on submit
+  tags: z.string().optional(),
   genres: z.array(z.string()).default([]),
   categories: z.array(z.string()).default([]),
   mediaAssetId: z.string().nullable().optional(),
 });
 
-type ContentFormData = z.infer<typeof contentSchema>;
+type ImageFieldName = 'posterKey' | 'backdropKey';
+type UploadResponse = { storageKey: string; originalFilename: string; mimeType: string; size: number };
 
 export function ContentEditor() {
   const { id } = useParams<{ id: string }>();
@@ -55,7 +56,6 @@ export function ContentEditor() {
   const { data: unassignedMedia } = useQuery<any>({
     queryKey: ['adminUnassignedMedia'],
     queryFn: async () => {
-      // Just fetch recent media for now, in a real app you'd filter unassigned via backend API
       const res = (await adminApi.listMedia(1)) as any;
       return res.data.filter((m: any) => !m.contentId && !m.episodeId);
     }
@@ -71,6 +71,8 @@ export function ContentEditor() {
       tags: '',
       genres: [],
       categories: [],
+      posterKey: null,
+      backdropKey: null,
     }
   });
 
@@ -81,6 +83,8 @@ export function ContentEditor() {
         tags: content.tags?.join(', ') || '',
         genres: content.genres?.map((g: any) => g.genreId) || [],
         categories: content.categories?.map((c: any) => c.categoryId) || [],
+        posterKey: content.posterKey || null,
+        backdropKey: content.backdropKey || null,
         mediaAssetId: content.mediaAsset?.id || null
       });
     }
@@ -98,29 +102,30 @@ export function ContentEditor() {
   });
 
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'posterKey' | 'backdropKey', onChange: (val: string) => void) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadImage = async (file: File, fieldName: ImageFieldName, onChange: (val: string | null) => void) => {
+    if (!file.type.startsWith('image/')) {
+      setUploadErrors(prev => ({ ...prev, [fieldName]: 'Please choose a JPG, PNG, or WebP image.' }));
+      return;
+    }
 
-    setUploading(prev => ({ ...prev, [fieldName]: true }));
+    const endpoint = fieldName === 'posterKey' ? '/uploads/poster' : '/uploads/backdrop';
     const formData = new FormData();
     formData.append('file', file);
-    // Since images go to same upload API? Wait, the upload API is for video. 
-    // If Moonview doesn't have an image upload API, we need to create one, or just use the same upload route and bypass processing.
-    // Let's assume the upload API returns a key we can use. For now we will mock the upload if there isn't one, but we should use the real one.
-    // Actually, Phase 5 upload API is for video. It starts a BullMQ job. 
-    // Let's check `backend/src/routes/upload.ts` to see if it supports images.
+
+    setUploading(prev => ({ ...prev, [fieldName]: true }));
+    setUploadErrors(prev => ({ ...prev, [fieldName]: '' }));
+
     try {
-      const res = await apiFetch('/uploads', { method: 'POST', body: formData, headers: { 'Content-Type': 'multipart/form-data' } });
-      // Wait, apiFetch sets JSON headers if not FormData. We should use standard fetch or fix apiFetch.
-      // But actually, upload.ts only handles videos for processing.
-      // For images, we can just use a generic local upload if we want, or rely on URL inputs.
-      // The prompt said "Upload poster. Upload backdrop." so we need an image upload endpoint.
-      // Let's just create a generic upload endpoint in a bit if it doesn't exist, or just use a text input for the key.
-      alert('File upload to be implemented in upload router. Please enter key manually for now.');
-    } catch (error) {
-      console.error(error);
+      const result = await apiFetch<UploadResponse>(endpoint, {
+        method: 'POST',
+        body: formData,
+        timeout: 60_000,
+      });
+      onChange(result.storageKey);
+    } catch (error: any) {
+      setUploadErrors(prev => ({ ...prev, [fieldName]: error.message || 'Upload failed. Please try again.' }));
     } finally {
       setUploading(prev => ({ ...prev, [fieldName]: false }));
     }
@@ -129,6 +134,8 @@ export function ContentEditor() {
   const onSubmit = (data: any) => {
     const payload = {
       ...data,
+      posterKey: data.posterKey || null,
+      backdropKey: data.backdropKey || null,
       tags: data.tags ? data.tags.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
     };
     saveMutation.mutate(payload);
@@ -139,7 +146,7 @@ export function ContentEditor() {
   if (!isNew && isContentLoading) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
   return (
-    <div style={{ padding: '3rem', maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ padding: '3rem', maxWidth: '920px', margin: '0 auto' }}>
       <button onClick={() => navigate('/admin/content')} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
         <ArrowLeft size={16} /> Back to Content
       </button>
@@ -147,8 +154,7 @@ export function ContentEditor() {
       <h1 style={{ fontSize: '2rem', marginBottom: '2rem', fontWeight: 600 }}>{isNew ? 'New Content' : 'Edit Content'}</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Type</label>
             <select {...register('type')} style={inputStyle} disabled={!isNew}>
@@ -177,7 +183,7 @@ export function ContentEditor() {
           {errors.description && <span style={errorStyle}>{String(errors.description?.message)}</span>}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Release Year</label>
             <input type="number" {...register('releaseYear', { valueAsNumber: true })} style={inputStyle} />
@@ -208,24 +214,57 @@ export function ContentEditor() {
           <label htmlFor="featured" style={{ fontSize: '0.9rem', fontWeight: 500 }}>Featured (Show on Homepage Hero)</label>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Poster Image Key</label>
-            <input {...register('posterKey')} style={inputStyle} placeholder="e.g. filename.jpg" />
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.25rem' }}>Artwork</h2>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+              Drag and drop images here. Moonview will save the correct media key automatically.
+            </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Backdrop Image Key</label>
-            <input {...register('backdropKey')} style={inputStyle} placeholder="e.g. filename.jpg" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+            <Controller
+              control={control}
+              name="posterKey"
+              render={({ field }) => (
+                <ArtworkDropZone
+                  label="Poster image"
+                  helper="Vertical cover artwork"
+                  value={field.value}
+                  aspect="poster"
+                  uploading={Boolean(uploading.posterKey)}
+                  error={uploadErrors.posterKey}
+                  onChange={field.onChange}
+                  onUpload={(file) => uploadImage(file, 'posterKey', field.onChange)}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="backdropKey"
+              render={({ field }) => (
+                <ArtworkDropZone
+                  label="Banner / backdrop image"
+                  helper="Wide hero banner used on homepage/details"
+                  value={field.value}
+                  aspect="backdrop"
+                  uploading={Boolean(uploading.backdropKey)}
+                  error={uploadErrors.backdropKey}
+                  onChange={field.onChange}
+                  onUpload={(file) => uploadImage(file, 'backdropKey', field.onChange)}
+                />
+              )}
+            />
           </div>
-        </div>
+        </section>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Tags (comma-separated)</label>
           <input {...register('tags')} style={inputStyle} placeholder="sci-fi, space, action" />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Genres</label>
             <select multiple {...register('genres')} style={{ ...inputStyle, minHeight: '100px' }}>
@@ -261,10 +300,125 @@ export function ContentEditor() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
           <Button type="button" variant="secondary" onClick={() => navigate('/admin/content')}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Content'}</Button>
+          <Button type="submit" disabled={isSubmitting || saveMutation.isPending}>{isSubmitting || saveMutation.isPending ? 'Saving...' : 'Save Content'}</Button>
         </div>
-        
       </form>
+    </div>
+  );
+}
+
+function ArtworkDropZone({
+  label,
+  helper,
+  value,
+  aspect,
+  uploading,
+  error,
+  onChange,
+  onUpload,
+}: {
+  label: string;
+  helper: string;
+  value?: string | null;
+  aspect: 'poster' | 'backdrop';
+  uploading: boolean;
+  error?: string;
+  onChange: (value: string | null) => void;
+  onUpload: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const previewUrl = value ? `/media/${value}` : null;
+
+  const handleFiles = (files: FileList | null) => {
+    const file = files?.[0];
+    if (file) onUpload(file);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div>
+          <label style={{ fontSize: '0.9rem', fontWeight: 600 }}>{label}</label>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem', marginTop: '0.15rem' }}>{helper}</div>
+        </div>
+        {value && (
+          <button type="button" onClick={() => onChange(null)} style={clearButtonStyle} aria-label={`Remove ${label}`}>
+            <X size={14} /> Clear
+          </button>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          handleFiles(event.dataTransfer.files);
+        }}
+        disabled={uploading}
+        style={{
+          ...dropZoneStyle,
+          minHeight: aspect === 'poster' ? '260px' : '180px',
+          aspectRatio: aspect === 'poster' ? '2 / 3' : '16 / 9',
+          borderColor: isDragging ? 'var(--color-brand-accent)' : value ? 'rgba(124, 108, 255, 0.48)' : 'var(--color-border-subtle)',
+          background: isDragging ? 'rgba(124, 108, 255, 0.16)' : 'var(--color-bg-elevated)',
+          cursor: uploading ? 'wait' : 'pointer',
+          opacity: uploading ? 0.82 : 1,
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+          onChange={(event) => handleFiles(event.target.files)}
+          disabled={uploading}
+          style={{ display: 'none' }}
+        />
+
+        {previewUrl ? (
+          <>
+            <img src={previewUrl} alt={label} style={previewImageStyle} />
+            <span style={imageKeyBadgeStyle}>{value}</span>
+          </>
+        ) : (
+          <div style={{ display: 'grid', placeItems: 'center', gap: '0.65rem', padding: '1.2rem', textAlign: 'center' }}>
+            <div style={uploadIconStyle}>
+              {uploading ? <Loader2 size={28} style={spinnerIconStyle} /> : <UploadCloud size={30} />}
+            </div>
+            <div style={{ fontWeight: 700 }}>{uploading ? 'Uploading image...' : 'Drop image here'}</div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem' }}>or click to choose JPG, PNG, or WebP</div>
+          </div>
+        )}
+
+        {uploading && previewUrl && (
+          <div style={uploadOverlayStyle}>
+            <Loader2 size={28} style={spinnerIconStyle} />
+            Uploading...
+          </div>
+        )}
+      </button>
+
+      {value && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--color-text-muted)', fontSize: '0.78rem', wordBreak: 'break-all' }}>
+          <ImageIcon size={13} /> {value}
+        </div>
+      )}
+      {error && <span style={errorStyle}>{error}</span>}
     </div>
   );
 }
@@ -276,6 +430,82 @@ const inputStyle = {
   background: 'var(--color-bg-base)',
   color: 'white',
   fontSize: '0.95rem'
+};
+
+const dropZoneStyle = {
+  position: 'relative' as const,
+  width: '100%',
+  overflow: 'hidden',
+  border: '1px dashed var(--color-border-subtle)',
+  borderRadius: '14px',
+  color: 'var(--color-text-primary)',
+  transition: 'border-color 160ms ease, background 160ms ease, transform 160ms ease',
+};
+
+const previewImageStyle = {
+  position: 'absolute' as const,
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover' as const,
+};
+
+const imageKeyBadgeStyle = {
+  position: 'absolute' as const,
+  left: '0.75rem',
+  right: '0.75rem',
+  bottom: '0.75rem',
+  padding: '0.45rem 0.55rem',
+  borderRadius: '8px',
+  background: 'rgba(7, 10, 18, 0.72)',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
+  color: 'var(--color-text-secondary)',
+  fontSize: '0.72rem',
+  textAlign: 'left' as const,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+  backdropFilter: 'blur(12px)',
+};
+
+const uploadIconStyle = {
+  width: '58px',
+  height: '58px',
+  display: 'grid',
+  placeItems: 'center',
+  color: 'white',
+  borderRadius: '999px',
+  background: 'linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-accent))',
+  boxShadow: '0 16px 42px rgba(124, 108, 255, 0.28)',
+};
+
+const spinnerIconStyle = {
+  animation: 'spin 1s linear infinite',
+};
+
+const uploadOverlayStyle = {
+  position: 'absolute' as const,
+  inset: 0,
+  display: 'grid',
+  placeItems: 'center',
+  gap: '0.5rem',
+  background: 'rgba(7, 10, 18, 0.72)',
+  color: 'white',
+  fontWeight: 700,
+  backdropFilter: 'blur(8px)',
+};
+
+const clearButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  padding: '0.35rem 0.55rem',
+  borderRadius: '999px',
+  border: '1px solid var(--color-border-subtle)',
+  background: 'rgba(255, 255, 255, 0.04)',
+  color: 'var(--color-text-secondary)',
+  cursor: 'pointer',
+  fontSize: '0.78rem',
 };
 
 const errorStyle = {

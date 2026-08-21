@@ -1,19 +1,29 @@
 .playerContainer {
+  --player-accent: var(--color-brand-primary, #7c6cff);
+  --player-accent-strong: var(--color-brand-secondary, #9184ff);
+  --player-accent-blue: var(--color-brand-accent, #35c2ff);
+  --player-accent-soft: rgba(124, 108, 255, 0.2);
+  --player-accent-glow: rgba(124, 108, 255, 0.42);
+  --player-surface-hover: rgba(124, 108, 255, 0.18);
+
   position: relative;
   width: 100%;
   height: 100%;
-  background-color: #000;
+  min-height: 320px;
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   user-select: none;
+  touch-action: manipulation;
 }
 
 .video {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  background: #000;
 }
 
 .overlay {
@@ -22,28 +32,31 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: opacity var(--transition-base);
+  opacity: 1;
+  transition: opacity 180ms ease;
   z-index: 10;
+  pointer-events: none;
 }
 
 .overlay.hidden {
   opacity: 0;
-  pointer-events: none;
   cursor: none;
 }
 
 .topGradient {
-  height: 120px;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+  height: 24%;
+  min-height: 96px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.32) 45%, rgba(0, 0, 0, 0));
   pointer-events: none;
 }
 
 .bottomControls {
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-  padding: var(--space-4) var(--space-6);
+  pointer-events: auto;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.58) 52%, rgba(0, 0, 0, 0));
+  padding: 4.5rem clamp(1rem, 3vw, 2.5rem) max(1rem, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 0.75rem;
 }
 
 .centerState {
@@ -53,20 +66,39 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  z-index: 15;
 }
 
 .centerIcon {
-  background: rgba(0, 0, 0, 0.5);
+  width: clamp(72px, 10vw, 104px);
+  height: clamp(72px, 10vw, 104px);
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(124, 108, 255, 0.88), rgba(53, 194, 255, 0.74));
+  border: 1px solid rgba(145, 132, 255, 0.44);
   border-radius: 50%;
-  padding: 1rem;
   color: white;
-  animation: pulse 1.5s infinite;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 12px 46px var(--player-accent-glow);
+  backdrop-filter: blur(16px);
+  transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+}
+
+.centerState:hover .centerIcon {
+  transform: scale(1.05);
+  filter: brightness(1.08) saturate(1.1);
+  box-shadow:
+    0 26px 86px rgba(0, 0, 0, 0.58),
+    0 14px 54px rgba(53, 194, 255, 0.28);
 }
 
 .errorState {
   position: absolute;
   inset: 0;
-  background: #000;
+  background: radial-gradient(circle at center, rgba(40, 10, 16, 0.45), #000 62%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -77,170 +109,356 @@
 }
 
 .errorTitle {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: var(--color-error);
-  margin-bottom: 1rem;
+  font-size: clamp(1.25rem, 3vw, 1.8rem);
+  font-weight: 800;
+  color: #ff5b68;
+  margin-bottom: 0.75rem;
 }
 
 .errorMessage {
-  color: var(--color-text-secondary);
-  max-width: 500px;
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 520px;
+  line-height: 1.55;
 }
 
-/* Controls */
 .controlsRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: 1rem;
 }
 
 .controlsGroup {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: 0.65rem;
+  min-width: 0;
 }
 
 .iconBtn {
-  color: white;
-  opacity: 0.8;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-  padding: 0.25rem;
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(13, 18, 32, 0.38);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  opacity: 0.92;
+  transition: transform 150ms ease, opacity 150ms ease, background 150ms ease, border-color 150ms ease;
 }
 
-.iconBtn:hover {
+.iconBtn:hover,
+.iconBtn:focus-visible {
   opacity: 1;
-  transform: scale(1.1);
+  transform: scale(1.08);
+  background: var(--player-surface-hover);
+  border-color: rgba(145, 132, 255, 0.34);
+  outline: none;
+}
+
+.primaryPlayBtn {
+  width: 52px;
+  height: 52px;
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(135deg, var(--player-accent), var(--player-accent-blue));
+  border-color: rgba(145, 132, 255, 0.42);
+  box-shadow: 0 12px 34px var(--player-accent-glow);
+}
+
+.primaryPlayBtn:hover,
+.primaryPlayBtn:focus-visible {
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.24), transparent 34%),
+    linear-gradient(135deg, var(--player-accent-strong), var(--player-accent-blue));
+}
+
+.skipBtn {
+  overflow: hidden;
+}
+
+.skipIcon {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+
+.skipAmount {
+  position: relative;
+  z-index: 1;
+  margin-top: 1px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.62);
 }
 
 .timeDisplay {
-  color: white;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  min-width: 100px;
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 0.86rem;
+  min-width: 112px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Progress */
 .progressContainer {
   position: relative;
   width: 100%;
-  height: 20px;
+  height: 28px;
   display: flex;
   align-items: center;
   cursor: pointer;
+  touch-action: none;
 }
 
 .progressTrack {
   position: absolute;
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
-  transition: height var(--transition-fast);
+  height: 5px;
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  overflow: hidden;
+  transition: height 150ms ease, background 150ms ease;
 }
 
-.progressContainer:hover .progressTrack {
-  height: 6px;
+.progressContainer:hover .progressTrack,
+.progressContainer:active .progressTrack {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.progressBuffered,
+.progressFill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: inherit;
 }
 
 .progressBuffered {
-  position: absolute;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
-  left: 0;
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .progressFill {
-  position: absolute;
-  height: 100%;
-  background: var(--color-brand-primary);
-  border-radius: 2px;
-  left: 0;
+  background: linear-gradient(90deg, var(--player-accent), var(--player-accent-blue));
+  box-shadow: 0 0 18px var(--player-accent-glow);
 }
 
 .progressThumb {
   position: absolute;
-  width: 16px;
-  height: 16px;
-  background: var(--color-brand-primary);
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, var(--player-accent), var(--player-accent-blue));
+  border: 3px solid #fff;
   border-radius: 50%;
   top: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   transform: translate(-50%, -50%) scale(0);
-  transition: transform var(--transition-fast);
+  transition: transform 150ms ease;
 }
 
-.progressContainer:hover .progressThumb {
+.progressContainer:hover .progressThumb,
+.progressContainer:active .progressThumb {
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* Volume Slider */
 .volumeGroup {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.4rem;
 }
 
 .volumeSlider {
   width: 0;
   opacity: 0;
-  transition: width var(--transition-fast), opacity var(--transition-fast);
+  transition: width 160ms ease, opacity 160ms ease;
   overflow: hidden;
   display: flex;
   align-items: center;
 }
 
-.volumeGroup:hover .volumeSlider, .volumeSlider:focus-within {
-  width: 80px;
+.volumeGroup:hover .volumeSlider,
+.volumeSlider:focus-within {
+  width: 92px;
   opacity: 1;
 }
 
 .volumeTrack {
-  width: 100%;
-  height: 4px;
+  width: 92px;
+  height: 5px;
   background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
+  border-radius: 999px;
   position: relative;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .volumeFill {
   height: 100%;
-  background: white;
-  border-radius: 2px;
+  background: linear-gradient(90deg, var(--player-accent), var(--player-accent-blue));
+  border-radius: inherit;
 }
 
-/* Quality Menu */
+.qualityRoot {
+  position: relative;
+}
+
 .qualityMenu {
   position: absolute;
-  bottom: 60px;
-  right: 2rem;
-  background: rgba(10, 10, 15, 0.9);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0;
+  bottom: 58px;
+  right: 0;
+  width: min(240px, calc(100vw - 2rem));
+  background: rgba(13, 18, 32, 0.94);
+  border: 1px solid rgba(145, 132, 255, 0.18);
+  border-radius: 8px;
+  padding: 0.45rem;
   display: flex;
   flex-direction: column;
-  min-width: 120px;
-  z-index: 20;
+  gap: 0.15rem;
+  z-index: 30;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(18px);
+}
+
+.qualityHeader {
+  padding: 0.55rem 0.75rem 0.35rem;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .qualityBtn {
-  padding: 0.5rem 1.5rem;
+  min-height: 42px;
+  padding: 0.55rem 0.7rem;
   color: white;
   text-align: left;
-  font-size: var(--text-sm);
-  display: flex;
+  font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.55rem;
+  border-radius: 6px;
 }
 
-.qualityBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.qualityBtn:hover,
+.qualityBtn:focus-visible {
+  background: rgba(124, 108, 255, 0.14);
+  outline: none;
 }
 
 .qualityBtn.active {
-  color: var(--color-brand-primary);
-  font-weight: bold;
+  color: #fff;
+  background: var(--player-accent-soft);
+  box-shadow: inset 3px 0 0 var(--player-accent-blue);
+}
+
+.qualityMeta {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.qualityEmpty {
+  padding: 0.7rem 0.75rem 0.8rem;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .playerContainer {
+    min-height: 100dvh;
+  }
+
+  .topGradient {
+    min-height: 76px;
+  }
+
+  .bottomControls {
+    padding: 4rem 0.85rem max(0.8rem, env(safe-area-inset-bottom));
+    gap: 0.65rem;
+  }
+
+  .controlsRow {
+    gap: 0.65rem;
+  }
+
+  .controlsGroup {
+    gap: 0.35rem;
+  }
+
+  .iconBtn {
+    width: 42px;
+    height: 42px;
+    background: rgba(13, 18, 32, 0.46);
+  }
+
+  .primaryPlayBtn {
+    width: 50px;
+    height: 50px;
+  }
+
+  .volumeGroup {
+    display: none;
+  }
+
+  .timeDisplay {
+    position: absolute;
+    left: 0.9rem;
+    bottom: calc(max(0.8rem, env(safe-area-inset-bottom)) + 4.1rem);
+    min-width: 0;
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .progressContainer {
+    height: 34px;
+  }
+
+  .progressTrack {
+    height: 7px;
+  }
+
+  .progressThumb {
+    width: 20px;
+    height: 20px;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .qualityMenu {
+    right: -48px;
+    bottom: 52px;
+    width: min(230px, calc(100vw - 1.5rem));
+  }
+}
+
+@media (max-width: 430px) {
+  .controlsRow {
+    align-items: flex-end;
+  }
+
+  .controlsGroup:first-child {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .controlsGroup:last-child {
+    gap: 0.25rem;
+  }
+
+  .iconBtn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .primaryPlayBtn {
+    width: 48px;
+    height: 48px;
+  }
 }

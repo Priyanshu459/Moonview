@@ -119,14 +119,34 @@ export const processVideoJob = async (job: Job) => {
       where: { id: jobId },
       data: { status: 'GENERATING_HLS', processingProgress: 20 },
     });
-    await generateHlsVariants(sourceUri, workspaceDir, targetResolutions, Boolean(probeData.audioCodec));
-    
+
+    let lastProgressUpdate = Date.now();
+    await generateHlsVariants(sourceUri, workspaceDir, targetResolutions, Boolean(probeData.audioCodec), jobId, mediaAssetId, async (timeSec) => {
+      const now = Date.now();
+      if (now - lastProgressUpdate > 2000) { // Throttle Redis updates to max once per 2 seconds
+        lastProgressUpdate = now;
+        const percentage = Math.min(100, Math.floor((timeSec / probeData.duration) * 60)); // Max 60% assigned to HLS generation (20 to 80)
+        const currentProgress = 20 + percentage;
+
+        await job.updateProgress(currentProgress).catch(err => {
+          logger.warn({ jobId, err }, 'Failed to update job progress in Redis');
+        });
+
+        // Also update the database so the frontend can read it via the API
+        await prisma.uploadJob.update({
+          where: { id: jobId },
+          data: { processingProgress: currentProgress }
+        }).catch(() => {});
+      }
+    });
+
     // 6. Generate Thumbnail
     await job.updateProgress(80);
+    await prisma.uploadJob.update({ where: { id: jobId }, data: { processingProgress: 80 } }).catch(() => {});
     const thumbnailName = `poster.jpg`;
     const thumbnailWorkspacePath = path.join(workspaceDir, thumbnailName);
-    
-    await generateThumbnail(sourceUri, thumbnailWorkspacePath, Math.min(2, probeData.duration / 2));
+
+    await generateThumbnail(sourceUri, thumbnailWorkspacePath, Math.min(2, probeData.duration / 2), jobId, mediaAssetId);
 
     // 7. Verification: Ensure files exist before transitioning
     await fs.access(path.join(workspaceDir, 'master.m3u8'));
@@ -134,6 +154,7 @@ export const processVideoJob = async (job: Job) => {
 
     // 8. Finalize Storage
     await job.updateProgress(90);
+    await prisma.uploadJob.update({ where: { id: jobId }, data: { processingProgress: 90 } }).catch(() => {});
     const assetHlsPrefix = `hls-private/${mediaAssetId}`;
     const assetPosterPrefix = `posters/${mediaAssetId}`;
 
@@ -144,16 +165,16 @@ export const processVideoJob = async (job: Job) => {
       fs.rm(storageService.getUri(assetHlsPrefix), { recursive: true, force: true }),
       fs.rm(storageService.getUri(assetPosterPrefix), { recursive: true, force: true }),
     ]);
-    
+
     // Create new directories using importDirectory (which moves from workspace)
     // First, move thumbnail out since it goes to posters/
     await storageService.importDirectory(path.join(workspaceDir, thumbnailName), `${assetPosterPrefix}/poster.jpg`);
     // Then move the rest of HLS to private storage. Publish exposes a copy.
     await storageService.importDirectory(workspaceDir, assetHlsPrefix);
-    
+
     // 9. Update Database to READY (Short transaction)
     await job.updateProgress(100);
-    
+
     await prisma.$transaction(async (tx: any) => {
       const resEnumMap: Record<string, any> = {
           '1080p': 'RES_1080P',
